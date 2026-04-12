@@ -2,18 +2,19 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const connectDB = require('./config/db'); // ✅ ADD THIS
+const connectDB = require('./config/db');
 
 const app = express();
 
 // Connect Database
-connectDB(); // ✅ CALL THIS
+connectDB();
 
 // Routes
 const menuRoutes = require('./routes/menuRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const favoriteRoutes = require('./routes/favoriteRoutes'); // ⭐ NEW
 
 // Middleware
 app.use(cors());
@@ -24,6 +25,7 @@ app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/favorites', favoriteRoutes); // ⭐ NEW
 
 // Test route
 app.get('/', (req, res) => {
