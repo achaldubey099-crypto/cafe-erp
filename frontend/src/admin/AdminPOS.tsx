@@ -291,6 +291,20 @@ export default function AdminPOS() {
                     >
                       Cancel
                     </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await API.delete(`/admin-orders/${order._id}`);
+                          setOrders((prev) => prev.filter((o) => o._id !== order._id));
+                        } catch (err) {
+                          console.error(err);
+                          setError('Failed to delete order');
+                        }
+                      }}
+                      className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-100 font-semibold"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </article>

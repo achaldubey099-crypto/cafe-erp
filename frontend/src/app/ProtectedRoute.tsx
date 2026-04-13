@@ -18,8 +18,15 @@ export default function ProtectedRoute({
   }
 
   // 🛡️ Role-based protection
-  if (role && (!user || user.role !== role)) {
-    return <Navigate to="/" replace />;
+  // If we have a token but user isn't loaded yet, wait (avoid redirecting to `/` on refresh)
+  if (role) {
+    if (!user) {
+      return null; // let auth context hydrate from localStorage
+    }
+
+    if (user.role !== role) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return children;

@@ -32,7 +32,8 @@ interface AdminOrder {
   createdAt: string;
 }
 
-const FILTERS: Array<"all" | OrderStatus> = ["all", "pending", "preparing", "ready", "completed", "cancelled"];
+// Prioritize the 3-stage pipeline for order processing
+const FILTERS: Array<"all" | OrderStatus> = ["pending", "preparing", "ready", "completed", "cancelled"];
 const UPDATABLE_STATUSES: UpdatableStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 
 const toTitle = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
@@ -52,7 +53,8 @@ const formatTimeAgo = (dateStr: string) => {
 };
 
 export default function AdminOrders() {
-  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  // Start on the first stage (pending)
+  const [filter, setFilter] = useState<"all" | OrderStatus>("pending");
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);

@@ -37,7 +37,21 @@ export default function Tracking() {
     fetchLatestOrder();
   }, [location.search]);
 
-  const statusLabel = order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Preparing Order';
+  // Explicit stages per philosophy
+  const isPending = order?.status === 'pending';
+  const isPreparing = order?.status === 'preparing';
+  const isReady = order?.status === 'ready';
+  const isCompleted = order?.status === 'completed';
+
+  const hasStarted = !!order;
+  const hasPreparing = isPreparing || isReady || isCompleted;
+  const hasReady = isReady || isCompleted;
+
+  const currentDisplayStatus = isReady ? 'Ready for Pickup' 
+    : isPreparing ? 'Preparing' 
+    : isPending ? 'Pending'
+    : isCompleted ? 'Completed'
+    : 'Loading...';
   const latestItems = order?.items || [];
 
   return (
@@ -66,46 +80,62 @@ export default function Tracking() {
           <div className="space-y-1">
             <span className="font-body text-[11px] font-semibold tracking-wider uppercase text-secondary">Current Status</span>
             <h2 className="font-headline text-3xl font-extrabold text-primary">
-              {loading ? 'Loading...' : statusLabel}
+              {loading ? 'Loading...' : currentDisplayStatus}
             </h2>
             <p className="text-on-surface-variant text-sm">
-              {order?.estimatedTime ? `Estimated arrival: ${order.estimatedTime}` : 'Estimated arrival will appear here'}
+              {order?.estimatedTime ? `Estimated arrival: ${order.estimatedTime}` : 'Real-time kitchen updates'}
             </p>
           </div>
 
           <div className="mt-10 relative">
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-surface-container-high rounded-full" />
-            <div className="absolute left-4 top-0 h-[66%] w-0.5 bg-primary rounded-full transition-all duration-700" />
+            <div 
+              className="absolute left-4 top-0 w-0.5 bg-primary rounded-full transition-all duration-700" 
+              style={{ height: hasReady ? '100%' : hasPreparing ? '50%' : '15%' }}
+            />
             
             <div className="space-y-10 relative">
-              <div className="flex items-center gap-6">
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-primary text-on-primary z-10">
+              <div className={cn("flex items-center gap-6", !hasStarted && "opacity-40")}>
+                <div className={cn(
+                  "relative flex items-center justify-center w-8 h-8 rounded-full z-10 transition-colors",
+                  hasStarted ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+                )}>
+                  {isPending && <div className="absolute inset-0 rounded-full border-4 border-primary/30 animate-pulse" />}
                   <Check size={18} strokeWidth={3} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-headline font-bold text-on-surface">Order Received</span>
-                  <span className="text-xs text-on-surface-variant">{order?.createdAt || 'Just now'}</span>
+                  <span className={cn("font-headline font-bold", hasStarted ? "text-primary" : "text-on-surface")}>Pending</span>
+                  <span className="text-xs text-on-surface-variant">
+                    {hasStarted ? order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Order received' : 'Waiting for order'}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-primary text-on-primary z-10">
-                  <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-pulse" />
+              <div className={cn("flex items-center gap-6", !hasPreparing && "opacity-40")}>
+                <div className={cn(
+                  "relative flex items-center justify-center w-8 h-8 rounded-full z-10 transition-colors",
+                  hasPreparing ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+                )}>
+                  {isPreparing && <div className="absolute inset-0 rounded-full border-4 border-primary/30 animate-pulse" />}
                   <Coffee size={18} fill="currentColor" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-headline font-bold text-primary">{statusLabel}</span>
-                  <span className="text-xs text-on-surface-variant">In progress</span>
+                  <span className={cn("font-headline font-bold", isPreparing ? "text-primary" : "text-on-surface")}>Preparing</span>
+                  <span className="text-xs text-on-surface-variant">Kitchen is working</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 opacity-40">
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant z-10">
+              <div className={cn("flex items-center gap-6", !hasReady && "opacity-40")}>
+                <div className={cn(
+                  "relative flex items-center justify-center w-8 h-8 rounded-full z-10 transition-colors",
+                  hasReady ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+                )}>
+                  {isReady && <div className="absolute inset-0 rounded-full border-4 border-primary/30 animate-pulse" />}
                   <ShoppingBag size={18} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-headline font-bold text-on-surface">Ready for Pickup</span>
-                  <span className="text-xs text-on-surface-variant">Waiting...</span>
+                  <span className={cn("font-headline font-bold", isReady ? "text-primary" : "text-on-surface")}>Ready</span>
+                  <span className="text-xs text-on-surface-variant">Ready for pickup</span>
                 </div>
               </div>
             </div>

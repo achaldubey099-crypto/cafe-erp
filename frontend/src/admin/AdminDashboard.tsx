@@ -29,6 +29,7 @@ export default function AdminDashboard() {
 
         const res = await API.get<AnalyticsResponse>("/analytics");
         setAnalytics(res.data);
+        console.log("Dashboard analytics loaded:", res.data);
       } catch (err) {
         console.error(err);
         setError("Failed to load dashboard analytics");
@@ -74,7 +75,6 @@ export default function AdminDashboard() {
 
           <p className="text-sm text-gray-500">Today's Sales</p>
           <h2 className="text-3xl font-bold">₹{analytics?.todaysSales.toFixed(2) || "0.00"}</h2>
-
           <div className="mt-4 h-1 bg-gray-200 rounded-full">
             <div className="w-[65%] h-1 bg-primary rounded-full"></div>
           </div>

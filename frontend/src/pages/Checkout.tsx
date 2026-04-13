@@ -61,8 +61,33 @@ export default function Checkout() {
     }
   };
 
+  // 🔥 PLACE ORDER WITHOUT PAYMENT
+  const handleOrderNoPayment = async () => {
+    try {
+      await API.post("/orders", {
+        tableId,
+        items: cart.map((item, index) => ({
+          itemId: index + 1,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        paymentMethod: "none",
+        splitBill: {
+          isSplit: people > 1,
+          peopleCount: people,
+        },
+      });
+
+      clearCart();
+      navigate(`/orders?tableId=${tableId}`);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
-    <div className="bg-background min-h-screen pb-32">
+    <div className="bg-background min-h-screen pb-48">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md flex justify-between items-center px-6 py-4">
         <div className="flex items-center gap-4">
@@ -200,14 +225,22 @@ export default function Checkout() {
       </main>
 
       {/* FOOTER */}
-      <footer className="fixed bottom-0 w-full bg-white p-4">
-        <button
-          onClick={handleOrder}
-          className="w-full h-14 bg-primary text-white rounded-2xl font-bold flex justify-between items-center px-6"
-        >
-          <span>Pay ₹{total}</span>
-          <ArrowRight />
-        </button>
+      <footer className="fixed bottom-0 w-full bg-white p-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleOrderNoPayment}
+            className="w-full h-14 bg-surface-container-low border border-outline/10 text-primary rounded-2xl font-bold flex justify-center items-center px-6 active:scale-95 transition-transform"
+          >
+            Place Order (Pay Later or Cash)
+          </button>
+          <button
+            onClick={handleOrder}
+            className="w-full h-14 bg-primary text-white rounded-2xl font-bold flex items-center justify-between px-6 active:scale-95 transition-transform shadow-lg shadow-primary/20"
+          >
+            <span>Pay Online</span>
+            <span className="flex items-center gap-2">₹{total} <ArrowRight size={18} /></span>
+          </button>
+        </div>
       </footer>
     </div>
   );

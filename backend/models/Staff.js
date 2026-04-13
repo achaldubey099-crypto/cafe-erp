@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const staffSchema = new mongoose.Schema({
   name: {
@@ -40,4 +40,4 @@ const staffSchema = new mongoose.Schema({
 
 const Staff = mongoose.model("Staff", staffSchema);
 
-export default Staff;
+module.exports = Staff;
