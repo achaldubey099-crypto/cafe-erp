@@ -9,11 +9,18 @@ const { protectAdmin } = require('./middleware/auth');
 
 const app = express();
 
-// Connect Database
+// ================= DB CONNECTION =================
 connectDB();
 
-// Middleware
-app.use(cors());
+// ================= MIDDLEWARE =================
+
+// ✅ CORS FIX (SUPPORT MULTIPLE FRONTENDS)
+app.use(cors({
+    origin: ["http://localhost:3000", "http://localhost:5173"],
+    credentials: true
+}));
+
+// Body parser
 app.use(express.json());
 
 // ================= ROUTES =================
@@ -35,28 +42,25 @@ const staffRoutes = require('./routes/staffRoutes');
 // ⭐ ANALYTICS ROUTES
 const analyticsRoutes = require('./routes/analyticsRoutes');
 
-// ⭐ INVENTORY ROUTES (NEW ✅)
+// ⭐ INVENTORY ROUTES
 const inventoryRoutes = require('./routes/inventoryRoutes');
 
 // ================= API ROUTES =================
 
+// Public APIs
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/favorites', favoriteRoutes);
 
-// Auth & Admin APIs
+// Auth & Admin
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 
-// ⭐ STAFF MANAGEMENT (ADMIN ONLY)
+// 🔐 Protected Admin APIs
 app.use('/api/staff', protectAdmin, staffRoutes);
-
-// ⭐ ANALYTICS (ADMIN ONLY)
 app.use('/api/analytics', protectAdmin, analyticsRoutes);
-
-// ⭐ INVENTORY (ADMIN ONLY 🔥)
 app.use('/api/inventory', protectAdmin, inventoryRoutes);
 
 // ================= TEST ROUTE =================
@@ -75,7 +79,9 @@ app.use((req, res) => {
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ message: "Something went wrong" });
+    res.status(err.status || 500).json({
+        message: err.message || "Something went wrong"
+    });
 });
 
 // ================= SERVER =================
@@ -83,5 +89,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

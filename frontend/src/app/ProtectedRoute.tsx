@@ -10,12 +10,16 @@ export default function ProtectedRoute({
 }) {
   const { user } = useAuth();
 
-  if (role === "admin" && !user) {
-  return <Navigate to="/admin-login" />;
-    }
+  const token = localStorage.getItem("token");
 
-  if (role && user.role !== role) {
-    return <Navigate to="/" />;
+  // 🔐 Not logged in
+  if (!token) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  // 🛡️ Role-based protection
+  if (role && (!user || user.role !== role)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

@@ -6,43 +6,25 @@ import Menu from "../pages/Menu";
 import Cart from "../pages/Cart";
 import Checkout from "../pages/Checkout";
 
-// admin pages (you will create these)
+// admin pages
 import Dashboard from "../admin/pages/Dashboard";
 import Orders from "../admin/pages/Orders";
+import AdminLogin from "../admin/pages/AdminLogin";
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* CUSTOMER */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute role="customer">
-              <Menu />
-            </ProtectedRoute>
-          }
-        />
 
-        <Route
-          path="/cart"
-          element={
-            <ProtectedRoute role="customer">
-              <Cart />
-            </ProtectedRoute>
-          }
-        />
+        {/* PUBLIC ROUTES */}
+        <Route path="/" element={<Menu />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
 
-        <Route
-          path="/checkout"
-          element={
-            <ProtectedRoute role="customer">
-              <Checkout />
-            </ProtectedRoute>
-          }
-        />
+        {/* 🔐 ADMIN LOGIN (IMPORTANT - NOT PROTECTED) */}
+        <Route path="/admin/login" element={<AdminLogin />} />
 
-        {/* ADMIN */}
+        {/* 🔐 ADMIN PROTECTED ROUTES */}
         <Route
           path="/admin"
           element={
@@ -60,6 +42,7 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
       </Routes>
     </BrowserRouter>
   );

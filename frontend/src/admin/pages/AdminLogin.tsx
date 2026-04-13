@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import API from "../../lib/api";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -8,23 +9,33 @@ export default function AdminLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
-    // 🔥 MOCK LOGIN (NO BACKEND)
+    try {
+      setLoading(true);
+      setError("");
 
-    if (email === "admin@test.com" && password === "123456") {
-      const mockData = {
-        token: "fake-token",
-        user: {
-          _id: "1",
-          role: "admin",
-        },
-      };
+      const res = await API.post("/auth/login", {
+        email,
+        password,
+      });
 
-      login(mockData);
+      // ✅ Save token in localStorage
+      localStorage.setItem("token", res.data.token);
+
+      // ✅ Save user in context
+      login(res.data);
+
+      // ✅ Redirect to admin dashboard
       navigate("/admin");
-    } else {
-      alert("Invalid credentials");
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +45,12 @@ export default function AdminLogin() {
         <h1 className="text-2xl font-bold text-center mb-6">
           Admin Login
         </h1>
+
+        {error && (
+          <p className="text-red-500 text-sm mb-4 text-center">
+            {error}
+          </p>
+        )}
 
         <input
           type="email"
@@ -53,9 +70,10 @@ export default function AdminLogin() {
 
         <button
           onClick={handleLogin}
-          className="w-full bg-primary text-white py-3 rounded-xl"
+          disabled={loading}
+          className="w-full bg-primary text-white py-3 rounded-xl disabled:opacity-50"
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </div>
     </div>

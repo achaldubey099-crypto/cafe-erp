@@ -26,7 +26,7 @@ import Analytics from "./admin/AdminAnalytics";
 import Settings from "./admin/AdminSettings";
 import Orders from "./admin/AdminOrders";
 import AdminLogin from "./admin/pages/AdminLogin";
-import AdminLayout from "./components/AdminLayout"; // ✅ IMPORTANT
+import AdminLayout from "./components/AdminLayout";
 
 export default function App() {
   const { user } = useAuth();
@@ -35,19 +35,18 @@ export default function App() {
     <Router>
       <div className="min-h-screen bg-background">
         <Routes>
-          {/* ================= CUSTOMER ================= */}
 
+          {/* ================= CUSTOMER ================= */}
           <Route path="/" element={<Menu />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<Tracking />} />
           <Route path="/profile" element={<Profile />} />
 
+          {/* ================= ADMIN LOGIN (FIXED) ================= */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+
           {/* ================= ADMIN ================= */}
-
-          <Route path="/admin-login" element={<AdminLogin />} />
-
-          {/* 🔥 NESTED ADMIN ROUTES */}
           <Route
             path="/admin"
             element={
@@ -59,7 +58,7 @@ export default function App() {
             {/* Dashboard */}
             <Route index element={<Dashboard />} />
 
-            {/* Orders */}
+            {/* Admin Pages */}
             <Route path="orders" element={<Orders />} />
             <Route path="pos" element={<POS />} />
             <Route path="inventory" element={<Inventory />} />
@@ -67,6 +66,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
           </Route>
+
         </Routes>
 
         {/* 🔥 SHOW NAV ONLY FOR CUSTOMER */}

@@ -13,6 +13,8 @@ export default function Menu() {
 
   const [activeCategory, setActiveCategory] = useState("Coffee");
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const { addToCart, cart } = useCart();
 
@@ -20,15 +22,28 @@ export default function Menu() {
 
   // 🔥 Fetch products from backend
   useEffect(() => {
-    API.get("/menu")
-      .then((res) => setProducts(res.data))
-      .catch(console.error);
+    const fetchProducts = async () => {
+      try {
+        const res = await API.get("/menu");
+        setProducts(res.data);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load menu");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
   }, []);
 
-  // 🔥 Filtering logic
+  // 🔥 Filtering logic (✅ FIXED HERE)
   const featuredProduct = products.find((p) => p.isFeatured);
+
   const filteredProducts = products.filter(
-    (p) => p.category === activeCategory && !p.isFeatured
+    (p) =>
+      p.category.toLowerCase() === activeCategory.toLowerCase() &&
+      !p.isFeatured
   );
 
   // 🔥 Cart calculations
@@ -37,6 +52,16 @@ export default function Menu() {
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+
+  // ✅ Loading UI
+  if (loading) {
+    return <div className="p-6 text-center">Loading menu...</div>;
+  }
+
+  // ✅ Error UI
+  if (error) {
+    return <div className="p-6 text-center text-red-500">{error}</div>;
+  }
 
   return (
     <div className="pb-32">

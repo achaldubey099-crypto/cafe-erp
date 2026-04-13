@@ -1,18 +1,41 @@
-import axios, { InternalAxiosRequestConfig } from "axios";
+import axios, { InternalAxiosRequestConfig, AxiosError } from "axios";
 
 const API = axios.create({
   baseURL: "http://localhost:5000/api",
+  withCredentials: true, // 🔥 important for CORS & cookies (future-ready)
 });
 
-// Attach token
-API.interceptors.request.use((req: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem("token");
+// 🔐 Attach token automatically
+API.interceptors.request.use(
+  (req: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem("token");
 
-  if (token && req.headers) {
-    req.headers.Authorization = `Bearer ${token}`;
+    if (token && req.headers) {
+      req.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return req;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ⚠️ Global response error handler
+API.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Handle unauthorized (token expired, etc.)
+    if (error.response?.status === 401) {
+      console.warn("Unauthorized - logging out");
+
+      // remove invalid token
+      localStorage.removeItem("token");
+
+      // optional: redirect to login
+      window.location.href = "/admin/login";
+    }
+
+    return Promise.reject(error);
   }
-
-  return req;
-});
+);
 
 export default API;
