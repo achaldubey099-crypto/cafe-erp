@@ -101,11 +101,11 @@ export default function Profile() {
           <h3 className="font-headline font-bold text-lg text-on-surface">Past Orders</h3>
           <div className="space-y-3">
             {PAST_ORDERS.map((order) => (
-              <div key={order.id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
+              <div key={order._id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order.id}</p>
-                    <p className="font-body text-xs text-on-surface-variant">{order.date}</p>
+                    <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order._id}</p>
+                    <p className="font-body text-xs text-on-surface-variant">{order.createdAt}</p>
                   </div>
                   <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
                     {order.status}

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 
 import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
@@ -69,8 +69,17 @@ export default function App() {
 
         </Routes>
 
-        {/* 🔥 SHOW NAV ONLY FOR CUSTOMER */}
-        {user?.role === "customer" && <BottomNav />}
+        {/* 🔥 SHOW NAV ON NON-ADMIN PAGES (visible to public and customers).
+            Use pathname so persisted admin user in localStorage doesn't hide nav on public pages. */}
+        {(() => {
+          function NavByPath() {
+            const { pathname } = useLocation();
+            if (pathname.startsWith("/admin")) return null;
+            return <BottomNav />;
+          }
+
+          return <NavByPath />;
+        })()}
       </div>
     </Router>
   );

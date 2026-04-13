@@ -1,7 +1,8 @@
+/// <reference types="vite/client" />
 import axios, { InternalAxiosRequestConfig, AxiosError } from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
   withCredentials: true, // 🔥 important for CORS & cookies (future-ready)
 });
 
