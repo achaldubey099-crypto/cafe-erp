@@ -1,7 +1,52 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { TrendingUp, ArrowRight } from "lucide-react";
+import API from "../lib/api";
+
+interface AnalyticsResponse {
+  todaysSales: number;
+  totalOrders: number;
+  totalRevenue: number;
+  netProfit: number;
+  weeklySales: Record<string, number>;
+  bestSellingProduct: { name: string; count: number };
+  retentionRate: string | number;
+  topSellingItems: Array<{ name: string; quantity: number }>;
+  advice: string;
+}
+
+const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AdminDashboard() {
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await API.get<AnalyticsResponse>("/analytics");
+        setAnalytics(res.data);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load dashboard analytics");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
+
+  const weeklyBars = useMemo(() => {
+    const source = analytics?.weeklySales || {};
+    return DAY_ORDER.map((day) => source[day] || 0);
+  }, [analytics]);
+
+  const maxBar = Math.max(...weeklyBars, 1);
+
   return (
     <div className="space-y-8 w-full">
 
@@ -28,13 +73,13 @@ export default function AdminDashboard() {
           </div>
 
           <p className="text-sm text-gray-500">Today's Sales</p>
-          <h2 className="text-3xl font-bold">$2,485.00</h2>
+          <h2 className="text-3xl font-bold">₹{analytics?.todaysSales.toFixed(2) || "0.00"}</h2>
 
           <div className="mt-4 h-1 bg-gray-200 rounded-full">
             <div className="w-[65%] h-1 bg-primary rounded-full"></div>
           </div>
 
-          <p className="text-xs text-gray-400 mt-2">65% of daily goal</p>
+          <p className="text-xs text-gray-400 mt-2">Live from `analyticsController`</p>
         </div>
 
         {/* ORDERS */}
@@ -49,7 +94,7 @@ export default function AdminDashboard() {
           </div>
 
           <p className="text-sm text-gray-500">Total Orders</p>
-          <h2 className="text-3xl font-bold">142</h2>
+          <h2 className="text-3xl font-bold">{analytics?.totalOrders ?? 0}</h2>
 
           <div className="flex mt-4 gap-2">
             <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
@@ -60,7 +105,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 mt-2">Latest transactions</p>
+          <p className="text-xs text-gray-400 mt-2">Daily order volume</p>
         </div>
 
         {/* PROFIT */}
@@ -73,13 +118,19 @@ export default function AdminDashboard() {
           </div>
 
           <p className="text-sm opacity-80">Net Profit (Monthly)</p>
-          <h2 className="text-3xl font-bold">$18,240</h2>
+          <h2 className="text-3xl font-bold">₹{analytics?.netProfit.toFixed(2) || "0.00"}</h2>
 
           <button className="mt-6 w-full bg-white/20 hover:bg-white/30 transition rounded-xl py-2 flex items-center justify-center gap-2">
             View Report <ArrowRight size={16} />
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* MIDDLE SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -96,13 +147,13 @@ export default function AdminDashboard() {
 
           {/* Fake chart */}
           <div className="flex items-end gap-4 h-40">
-            {[40, 80, 60, 100, 70, 50, 30].map((h, i) => (
+            {weeklyBars.map((value, i) => (
               <div
                 key={i}
                 className={`w-full rounded ${
-                  i === 3 ? "bg-primary" : "bg-gray-200"
+                  i === weeklyBars.indexOf(maxBar) ? "bg-primary" : "bg-gray-200"
                 }`}
-                style={{ height: `${h}%` }}
+                style={{ height: `${Math.max(12, (value / maxBar) * 100)}%` }}
               />
             ))}
           </div>
@@ -113,15 +164,15 @@ export default function AdminDashboard() {
           <h2 className="font-bold text-lg mb-4">Top Sellers</h2>
 
           <div className="space-y-4">
-            <div className="flex justify-between">
-              <span>Oatmilk Latte</span>
-              <span className="font-bold">$1,240</span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Butter Croissant</span>
-              <span className="font-bold">$837</span>
-            </div>
+            {(analytics?.topSellingItems || []).slice(0, 2).map((item) => (
+              <div key={item.name} className="flex justify-between">
+                <span>{item.name}</span>
+                <span className="font-bold">{item.quantity} sold</span>
+              </div>
+            ))}
+            {(!analytics || analytics.topSellingItems.length === 0) && (
+              <div className="text-sm text-secondary">No sales data yet.</div>
+            )}
           </div>
 
           <button className="mt-6 text-sm text-primary font-bold">
@@ -138,20 +189,21 @@ export default function AdminDashboard() {
         </div>
 
         <div className="divide-y">
-          {[
-            { id: "9842", name: "Elena Moss", total: "$24.50", status: "Ready" },
-            { id: "9841", name: "James Reed", total: "$6.75", status: "Preparing" },
-            { id: "9840", name: "Sarah King", total: "$52.00", status: "Completed" },
-          ].map((o) => (
-            <div key={o.id} className="flex justify-between p-4 text-sm">
-              <span>#{o.id}</span>
-              <span>{o.name}</span>
-              <span>{o.status}</span>
-              <span className="font-bold">{o.total}</span>
+          {(analytics?.topSellingItems || []).slice(0, 3).map((item, idx) => (
+            <div key={item.name} className="flex justify-between p-4 text-sm">
+              <span>#{idx + 1}</span>
+              <span>{item.name}</span>
+              <span>Top Item</span>
+              <span className="font-bold">{item.quantity} sold</span>
             </div>
           ))}
+          {!loading && analytics && analytics.topSellingItems.length === 0 && (
+            <div className="p-4 text-sm text-secondary">No order insights yet.</div>
+          )}
         </div>
       </div>
+
+      {loading && <div className="text-sm text-secondary">Loading dashboard...</div>}
     </div>
   );
 }

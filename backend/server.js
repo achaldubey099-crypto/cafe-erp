@@ -35,6 +35,7 @@ const favoriteRoutes = require('./routes/favoriteRoutes');
 // Auth & Admin
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const adminOrderRoutes = require('./routes/adminOrderRoutes');
 
 // ⭐ STAFF ROUTES
 const staffRoutes = require('./routes/staffRoutes');
@@ -57,6 +58,7 @@ app.use('/api/favorites', favoriteRoutes);
 // Auth & Admin
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin-orders', adminOrderRoutes);
 
 // 🔐 Protected Admin APIs
 app.use('/api/staff', protectAdmin, staffRoutes);

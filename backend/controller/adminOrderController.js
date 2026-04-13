@@ -81,22 +81,40 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // ⏱️ Smart timestamps
+    // Build update payload and avoid document save() so old orders without
+    // orderNumber don't fail full-schema validation during status updates.
+    const updatePayload = {
+      status,
+    };
+
     if (status === "preparing" && !order.startedAt) {
-      order.startedAt = new Date();
+      updatePayload.startedAt = new Date();
     }
 
     if (status === "completed") {
-      order.completedAt = new Date();
+      updatePayload.completedAt = new Date();
     }
 
-    order.status = status;
+    // Backfill missing orderNumber for legacy documents.
+    if (!order.orderNumber) {
+      const latestWithOrderNumber = await Order.findOne({
+        orderNumber: { $exists: true, $ne: null },
+      })
+        .sort({ orderNumber: -1 })
+        .select("orderNumber");
 
-    await order.save();
+      updatePayload.orderNumber = (latestWithOrderNumber?.orderNumber || 0) + 1;
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.params.id,
+      { $set: updatePayload },
+      { new: true }
+    );
 
     res.json({
       message: "Order status updated successfully",
-      order,
+      order: updatedOrder,
     });
 
   } catch (error) {

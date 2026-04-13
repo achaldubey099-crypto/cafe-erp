@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   TrendingUp, 
   Receipt, 
@@ -11,13 +11,58 @@ import {
   ArrowUp as ArrowUpward
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import API from '../lib/api';
+
+interface AnalyticsResponse {
+  todaysSales: number;
+  totalOrders: number;
+  totalRevenue: number;
+  netProfit: number;
+  weeklySales: Record<string, number>;
+  bestSellingProduct: { name: string; count: number };
+  retentionRate: string | number;
+  topSellingItems: Array<{ name: string; quantity: number }>;
+  advice: string;
+}
+
+const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function AdminAnalytics() {
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        const res = await API.get<AnalyticsResponse>('/analytics');
+        setAnalytics(res.data);
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load analytics data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, []);
+
   const summary = [
-    { label: "Today's Sales", value: "$2,845.00", trend: "12%", icon: TrendingUp },
-    { label: "Total Orders", value: "148", trend: "Stable", icon: Receipt },
-    { label: "Total Revenue", value: "$18,240.50", trend: "8%", icon: Wallet },
+    { label: "Today's Sales", value: `₹${analytics?.todaysSales.toFixed(2) || '0.00'}`, trend: 'Live', icon: TrendingUp },
+    { label: 'Total Orders', value: `${analytics?.totalOrders ?? 0}`, trend: 'Live', icon: Receipt },
+    { label: 'Total Revenue', value: `₹${analytics?.totalRevenue.toFixed(2) || '0.00'}`, trend: 'Live', icon: Wallet },
   ];
+
+  const weeklyBars = useMemo(() => {
+    const source = analytics?.weeklySales || {};
+    return DAY_ORDER.map((day) => source[day] || 0);
+  }, [analytics]);
+
+  const maxBar = Math.max(...weeklyBars, 1);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -61,7 +106,7 @@ export default function AdminAnalytics() {
             </div>
           </div>
           <div className="text-on-primary/70 text-xs font-bold uppercase tracking-wider">Net Profit</div>
-          <div className="text-2xl font-black mt-1 font-headline">$1,120.25</div>
+          <div className="text-2xl font-black mt-1 font-headline">₹{analytics?.netProfit.toFixed(2) || '0.00'}</div>
           <div className="mt-4 h-1 w-full bg-white/20 rounded-full overflow-hidden">
             <div className="h-full bg-white w-3/4" />
           </div>
@@ -82,17 +127,17 @@ export default function AdminAnalytics() {
             </button>
           </div>
           <div className="h-64 flex items-end justify-between gap-4 px-2">
-            {[40, 55, 45, 85, 65, 70, 50].map((h, i) => (
+            {weeklyBars.map((value, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
                 <div 
                   className={cn(
                     "w-full rounded-t-xl transition-all duration-500",
-                    i === 3 ? "bg-primary" : "bg-surface-container-high group-hover:bg-primary/20"
+                    i === weeklyBars.indexOf(maxBar) ? "bg-primary" : "bg-surface-container-high group-hover:bg-primary/20"
                   )} 
-                  style={{ height: `${h}%` }} 
+                  style={{ height: `${Math.max(12, (value / maxBar) * 100)}%` }} 
                 />
                 <span className="text-[10px] font-bold text-secondary uppercase">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}
+                  {DAY_ORDER[i]}
                 </span>
               </div>
             ))}
@@ -110,8 +155,8 @@ export default function AdminAnalytics() {
                 </div>
                 <div>
                   <div className="text-[10px] uppercase font-bold text-secondary tracking-wider">Best Seller</div>
-                  <div className="text-base font-bold text-on-surface">Oat Milk Latte</div>
-                  <div className="text-[10px] text-secondary font-medium">42 units sold today</div>
+                  <div className="text-base font-bold text-on-surface">{analytics?.bestSellingProduct.name || 'N/A'}</div>
+                  <div className="text-[10px] text-secondary font-medium">{analytics?.bestSellingProduct.count || 0} units sold</div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -120,9 +165,9 @@ export default function AdminAnalytics() {
                 </div>
                 <div>
                   <div className="text-[10px] uppercase font-bold text-secondary tracking-wider">Retention</div>
-                  <div className="text-base font-bold text-on-surface">68.4%</div>
+                  <div className="text-base font-bold text-on-surface">{analytics?.retentionRate || 0}%</div>
                   <div className="text-[10px] text-green-600 font-bold flex items-center gap-1">
-                    <ArrowUpward size={10} /> 2.1% from last month
+                    <ArrowUpward size={10} /> Based on repeat customers
                   </div>
                 </div>
               </div>
@@ -132,13 +177,21 @@ export default function AdminAnalytics() {
                   Smart Advice
                 </div>
                 <p className="text-[11px] text-secondary leading-relaxed font-medium">
-                  Morning rush starts 15 mins earlier on Thursdays. Consider scheduling an extra barista at 7:45 AM.
+                  {analytics?.advice || 'No recommendation yet.'}
                 </p>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      {loading && <div className="text-sm text-secondary">Loading analytics...</div>}
     </div>
   );
 }

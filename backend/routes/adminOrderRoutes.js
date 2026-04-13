@@ -1,60 +1,36 @@
-import express from "express";
-import {
+const express = require("express");
+const {
   getLiveOrders,
   updateOrderStatus,
   getPastOrders,
-} from "../controller/adminOrderController.js";
-
-import { verifyToken, isAdmin } from "../middleware/auth.js";
+} = require("../controller/adminOrderController");
+const { protectAdmin } = require("../middleware/auth");
+const Order = require("../models/Order");
 
 const router = express.Router();
 
-
 // 🔥 LIVE ORDERS (Queue + Filter + Sort)
-router.get(
-  "/live",
-  verifyToken,
-  isAdmin,
-  getLiveOrders
-);
-
+router.get("/live", protectAdmin, getLiveOrders);
 
 // 🔄 UPDATE ORDER STATUS
-router.put(
-  "/:id/status",
-  verifyToken,
-  isAdmin,
-  updateOrderStatus
-);
-
+router.put("/:id/status", protectAdmin, updateOrderStatus);
 
 // 📜 PAST ORDERS (with pagination)
-router.get(
-  "/history",
-  verifyToken,
-  isAdmin,
-  getPastOrders
-);
+router.get("/history", protectAdmin, getPastOrders);
 
+// 🔍 GET SINGLE ORDER DETAILS
+router.get("/:id", protectAdmin, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
 
-// 🔍 (Optional but VERY useful) GET SINGLE ORDER DETAILS
-router.get(
-  "/:id",
-  verifyToken,
-  isAdmin,
-  async (req, res) => {
-    try {
-      const order = await (await import("../models/Order.js")).default.findById(req.params.id);
-
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      res.json(order);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
     }
-  }
-);
 
-export default router;
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = router;

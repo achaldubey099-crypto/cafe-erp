@@ -19,11 +19,11 @@ import ProtectedRoute from "./app/ProtectedRoute";
 // 🔥 ADMIN
 import Dashboard from "./admin/AdminDashboard";
 import Inventory from "./admin/AdminInventory";
-import POS from "./admin/AdminPOS";
+import POS from "./admin/AdminPOS.tsx";
 import Staff from "./admin/AdminStaff";
 import Analytics from "./admin/AdminAnalytics";
 import Settings from "./admin/AdminSettings";
-import Orders from "./admin/AdminOrders";
+import Orders from "./admin/AdminOrders.tsx";
 import AdminLogin from "./admin/pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
 
