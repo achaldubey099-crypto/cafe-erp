@@ -17,7 +17,7 @@ export default function AdminLogin() {
       setLoading(true);
       setError("");
 
-      const res = await API.post("/auth/login", {
+      const res = await API.post<{ token: string; user: { id: string; name: string; role: "admin" | "customer" } }>("/auth/login", {
         email,
         password,
       });

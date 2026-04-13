@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { CartItem, MenuItem } from "../types";
+import { CartItem, Product } from "../types";
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: MenuItem) => void;
+  addToCart: (item: Product) => void;
   removeFromCart: (id: string) => void;
   clearCart: () => void;
 }
@@ -22,7 +22,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: Product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i._id === item._id);
 

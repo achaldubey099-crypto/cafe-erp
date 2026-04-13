@@ -1,11 +1,70 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Edit2, Stars, ChevronRight, RotateCcw, Apple, Settings, LogOut } from 'lucide-react';
-import { PAST_ORDERS } from '../constants';
-import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
+
+import API from '../lib/api';
+import { getTableId } from '../lib/table';
+import { Order } from '../types';
+
+interface ProfileResponse {
+  user: {
+    name: string;
+    tableId: number;
+  };
+  points: number;
+  totalSpent: number;
+  pastOrders: Order[];
+}
+
+interface FavoriteResponse {
+  _id: string;
+  itemId: {
+    _id: string;
+    name: string;
+    image?: string;
+    category?: string;
+  } | null;
+}
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const tableId = getTableId();
+
+      try {
+        setLoading(true);
+        setError('');
+
+        const [profileRes, favoritesRes] = await Promise.all([
+          API.get<ProfileResponse>('/orders/profile', { params: { tableId } }),
+          API.get<FavoriteResponse[]>('/favorites', { params: { tableId } }),
+        ]);
+
+        setProfile(profileRes.data);
+        setFavorites(favoritesRes.data || []);
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load profile data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  const userName = profile?.user?.name || 'Guest User';
+  const tableId = profile?.user?.tableId ?? getTableId();
+  const points = profile?.points ?? 0;
+  const totalSpent = profile?.totalSpent ?? 0;
+  const pastOrders = profile?.pastOrders || [];
+  const progressWidth = `${Math.min(100, (points % 100) || 20)}%`;
 
   return (
     <div className="bg-background min-h-screen pb-32">
@@ -23,6 +82,12 @@ export default function Profile() {
       </header>
 
       <main className="mt-20 px-5 max-w-md mx-auto space-y-8">
+        {error && (
+          <section className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+            {error}
+          </section>
+        )}
+
         {/* User Info */}
         <section className="flex flex-col items-center text-center">
           <div className="relative group">
@@ -39,8 +104,10 @@ export default function Profile() {
             </button>
           </div>
           <div className="mt-4">
-            <h2 className="font-headline font-extrabold text-2xl text-on-surface tracking-tight">Alex Rivera</h2>
-            <p className="font-body text-on-surface-variant text-sm mt-1">+1 555-0123 | alex.r@email.com</p>
+            <h2 className="font-headline font-extrabold text-2xl text-on-surface tracking-tight">
+              {loading ? 'Loading...' : userName}
+            </h2>
+            <p className="font-body text-on-surface-variant text-sm mt-1">Table #{tableId}</p>
           </div>
           <button className="mt-4 px-6 py-2 rounded-xl bg-surface-container-high text-primary font-semibold text-sm hover:bg-surface-container-highest transition-colors active:scale-95">
             Edit Profile
@@ -53,20 +120,21 @@ export default function Profile() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-body text-[10px] uppercase tracking-widest text-on-primary/60 font-bold">Current Balance</p>
-                <h3 className="font-headline font-bold text-3xl mt-1">240 Points Earned</h3>
+                <h3 className="font-headline font-bold text-3xl mt-1">{points} Points Earned</h3>
               </div>
               <Stars size={36} className="text-on-primary-container fill-current" />
             </div>
             <div className="mt-6 space-y-2">
               <div className="flex justify-between text-xs text-on-primary/90 font-medium">
                 <span>Progress</span>
-                <span>60 points away from a free pastry</span>
+                <span>{totalSpent > 0 ? `₹${totalSpent.toFixed(2)} spent` : 'Place your first order to earn points'}</span>
               </div>
               <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-on-primary-container rounded-full w-[80%]" />
+                <div className="h-full bg-on-primary-container rounded-full" style={{ width: progressWidth }} />
               </div>
             </div>
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-between items-center gap-4">
+              <p className="text-xs text-on-primary/80">Live data from your latest backend profile</p>
               <button className="text-on-primary text-sm font-semibold flex items-center gap-1 hover:underline">
                 View Rewards
                 <ChevronRight size={14} />
@@ -82,17 +150,25 @@ export default function Profile() {
             <button className="text-primary text-sm font-medium">See all</button>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { name: 'Oat Milk Shakerato', img: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=400&q=80' },
-              { name: 'Butter Croissant', img: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=400&q=80' }
-            ].map((fav, i) => (
-              <div key={i} className="bg-white p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
-                <div className="w-full aspect-square rounded-xl overflow-hidden">
-                  <img src={fav.img} alt={fav.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </div>
-                <p className="font-headline font-bold text-sm text-on-surface leading-tight">{fav.name}</p>
-              </div>
-            ))}
+            {loading && favorites.length === 0 ? (
+              <div className="col-span-2 rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">Loading favorites...</div>
+            ) : favorites.length > 0 ? (
+              favorites.map((favorite) => {
+                const item = favorite.itemId;
+                if (!item) return null;
+
+                return (
+                  <div key={favorite._id} className="bg-white p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
+                    <div className="w-full aspect-square rounded-xl overflow-hidden bg-surface-container">
+                      <img src={item.image || ''} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <p className="font-headline font-bold text-sm text-on-surface leading-tight">{item.name}</p>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="col-span-2 rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">No favorites saved yet.</div>
+            )}
           </div>
         </section>
 
@@ -100,28 +176,34 @@ export default function Profile() {
         <section className="space-y-4">
           <h3 className="font-headline font-bold text-lg text-on-surface">Past Orders</h3>
           <div className="space-y-3">
-            {PAST_ORDERS.map((order) => (
-              <div key={order._id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order._id}</p>
-                    <p className="font-body text-xs text-on-surface-variant">{order.createdAt}</p>
+            {pastOrders.length > 0 ? (
+              pastOrders.map((order) => (
+                <div key={order._id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order._id}</p>
+                      <p className="font-body text-xs text-on-surface-variant">{order.createdAt}</p>
+                    </div>
+                    <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
+                      {order.status}
+                    </span>
                   </div>
-                  <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    {order.status}
-                  </span>
-                </div>
-                <div className="flex justify-between items-end">
-                  <div className="space-y-1">
-                    <p className="font-body text-sm text-on-surface">{order.items.join(', ')}</p>
-                    <p className="font-headline font-bold text-primary">${order.total.toFixed(2)}</p>
+                  <div className="flex justify-between items-end gap-4">
+                    <div className="space-y-1">
+                      <p className="font-body text-sm text-on-surface">
+                        {order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}
+                      </p>
+                      <p className="font-headline font-bold text-primary">₹{order.grandTotal.toFixed(2)}</p>
+                    </div>
+                    <button className="bg-primary text-on-primary p-2 rounded-xl active:scale-90 transition-all">
+                      <RotateCcw size={18} />
+                    </button>
                   </div>
-                  <button className="bg-primary text-on-primary p-2 rounded-xl active:scale-90 transition-all">
-                    <RotateCcw size={18} />
-                  </button>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">No past orders found for this table.</div>
+            )}
           </div>
         </section>
 

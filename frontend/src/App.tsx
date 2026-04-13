@@ -15,7 +15,6 @@ import BottomNav from "./components/BottomNav";
 
 // 🔥 AUTH
 import ProtectedRoute from "./app/ProtectedRoute";
-import { useAuth } from "./context/AuthContext";
 
 // 🔥 ADMIN
 import Dashboard from "./admin/AdminDashboard";
@@ -28,9 +27,17 @@ import Orders from "./admin/AdminOrders";
 import AdminLogin from "./admin/pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
 
-export default function App() {
-  const { user } = useAuth();
+function CustomerBottomNav() {
+  const { pathname } = useLocation();
 
+  if (pathname.startsWith("/admin")) {
+    return null;
+  }
+
+  return <BottomNav />;
+}
+
+export default function App() {
   return (
     <Router>
       <div className="min-h-screen bg-background">
@@ -71,15 +78,7 @@ export default function App() {
 
         {/* 🔥 SHOW NAV ON NON-ADMIN PAGES (visible to public and customers).
             Use pathname so persisted admin user in localStorage doesn't hide nav on public pages. */}
-        {(() => {
-          function NavByPath() {
-            const { pathname } = useLocation();
-            if (pathname.startsWith("/admin")) return null;
-            return <BottomNav />;
-          }
-
-          return <NavByPath />;
-        })()}
+        <CustomerBottomNav />
       </div>
     </Router>
   );

@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 export default function BottomNav() {
   const navItems = [
     { to: '/', icon: Coffee, label: 'Menu' },
-    { to: '/cart', icon: ShoppingCart, label: 'Cart' },
+    { to: '/checkout', icon: ShoppingCart, label: 'Checkout' },
     { to: '/orders', icon: Receipt, label: 'Orders' },
     { to: '/profile', icon: User, label: 'Profile' },
   ];

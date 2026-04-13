@@ -31,13 +31,14 @@ export default function AdminPOS() {
   // ✅ ADD ITEM
   const addToOrder = (product: typeof PRODUCTS[0]) => {
     setCurrentOrder(prev => {
-      const existing = prev.find(i => i.id === product.id);
+      const productKey = product.id ?? product._id;
+      const existing = prev.find(i => i.id === productKey);
       if (existing) {
         return prev.map(i =>
-          i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.id === productKey ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { id: productKey, name: product.name, price: product.price, quantity: 1 }];
     });
   };
 
@@ -95,7 +96,7 @@ export default function AdminPOS() {
         <div className="grid grid-cols-3 gap-4">
           {filteredProducts.map(p => (
             <div
-              key={p.id}
+              key={p.id ?? p._id}
               onClick={() => addToOrder(p)}
               className="bg-white p-4 rounded-xl shadow-sm cursor-pointer hover:shadow-md"
             >

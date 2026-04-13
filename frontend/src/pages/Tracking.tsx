@@ -1,11 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import API from '../lib/api';
+import { getTableId } from '../lib/table';
+import { Order } from '../types';
 import { cn } from '../lib/utils';
 
 export default function Tracking() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const tableId = new URLSearchParams(location.search).get('tableId') || String(getTableId());
+
+    const fetchLatestOrder = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const res = await API.get<Order>('/orders/latest', { params: { tableId } });
+        setOrder(res.data);
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          setOrder(null);
+          return;
+        }
+        setError('Failed to load your latest order');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLatestOrder();
+  }, [location.search]);
+
+  const statusLabel = order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Preparing Order';
+  const latestItems = order?.items || [];
 
   return (
     <div className="bg-background min-h-screen pb-32">
@@ -32,8 +65,12 @@ export default function Tracking() {
           </div>
           <div className="space-y-1">
             <span className="font-body text-[11px] font-semibold tracking-wider uppercase text-secondary">Current Status</span>
-            <h2 className="font-headline text-3xl font-extrabold text-primary">Preparing Order</h2>
-            <p className="text-on-surface-variant text-sm">Estimated arrival: 12:45 PM</p>
+            <h2 className="font-headline text-3xl font-extrabold text-primary">
+              {loading ? 'Loading...' : statusLabel}
+            </h2>
+            <p className="text-on-surface-variant text-sm">
+              {order?.estimatedTime ? `Estimated arrival: ${order.estimatedTime}` : 'Estimated arrival will appear here'}
+            </p>
           </div>
 
           <div className="mt-10 relative">
@@ -47,7 +84,7 @@ export default function Tracking() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-headline font-bold text-on-surface">Order Received</span>
-                  <span className="text-xs text-on-surface-variant">12:15 PM</span>
+                  <span className="text-xs text-on-surface-variant">{order?.createdAt || 'Just now'}</span>
                 </div>
               </div>
 
@@ -57,7 +94,7 @@ export default function Tracking() {
                   <Coffee size={18} fill="currentColor" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-headline font-bold text-primary">Preparing</span>
+                  <span className="font-headline font-bold text-primary">{statusLabel}</span>
                   <span className="text-xs text-on-surface-variant">In progress</span>
                 </div>
               </div>
@@ -82,8 +119,10 @@ export default function Tracking() {
               <Stars size={24} fill="currentColor" />
             </div>
             <div>
-              <h3 className="font-headline font-bold text-on-primary-container">You earned 20 points</h3>
-              <p className="text-xs text-on-primary-container/80">Redeem on your next visit</p>
+              <h3 className="font-headline font-bold text-on-primary-container">
+                {order ? `Order total ₹${order.grandTotal.toFixed(2)}` : 'No active order found'}
+              </h3>
+              <p className="text-xs text-on-primary-container/80">Live status from your latest backend order</p>
             </div>
           </div>
           <ChevronRight size={20} className="text-on-primary-container/40" />
@@ -102,13 +141,23 @@ export default function Tracking() {
           <div className="flex flex-col gap-4">
             <div className="bg-secondary-container rounded-3xl p-6 flex-1 flex flex-col justify-end">
               <span className="font-body text-[10px] uppercase tracking-widest text-on-secondary-container/70 mb-1">Your Order</span>
-              <p className="font-headline font-bold text-on-secondary-container leading-tight">Artisan Oat Latte x1</p>
+              <p className="font-headline font-bold text-on-secondary-container leading-tight">
+                {latestItems.length > 0
+                  ? latestItems.map((item) => `${item.name} x${item.quantity}`).join(', ')
+                  : 'No order items yet'}
+              </p>
             </div>
             <div className="bg-surface-container rounded-3xl p-6 h-24 flex items-center justify-center">
               <Receipt size={32} className="text-primary/30" />
             </div>
           </div>
         </div>
+
+        {error && (
+          <section className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+            {error}
+          </section>
+        )}
 
         {/* Feedback */}
         <section className="space-y-6 pt-4 text-center">

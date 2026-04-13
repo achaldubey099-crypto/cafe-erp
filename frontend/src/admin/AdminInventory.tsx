@@ -94,7 +94,7 @@ export default function AdminInventory() {
             </thead>
             <tbody className="divide-y divide-outline/5">
               {PRODUCTS.map((product) => (
-                <tr key={product.id} className="group hover:bg-surface-container-low/30 transition-all">
+                <tr key={product.id ?? product._id} className="group hover:bg-surface-container-low/30 transition-all">
                   <td className="py-4 px-8">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface-container border border-outline/5">
@@ -102,7 +102,7 @@ export default function AdminInventory() {
                       </div>
                       <div>
                         <div className="font-bold text-on-surface">{product.name}</div>
-                        <div className="text-[10px] text-secondary font-bold uppercase tracking-tighter">SKU: ART-{product.id.padStart(3, '0')}</div>
+                        <div className="text-[10px] text-secondary font-bold uppercase tracking-tighter">SKU: ART-{(product.id ?? product._id).padStart(3, '0')}</div>
                       </div>
                     </div>
                   </td>

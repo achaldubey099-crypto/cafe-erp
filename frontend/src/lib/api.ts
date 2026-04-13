@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import axios, { InternalAxiosRequestConfig, AxiosError } from "axios";
+import axios from "axios";
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
@@ -8,7 +8,7 @@ const API = axios.create({
 
 // 🔐 Attach token automatically
 API.interceptors.request.use(
-  (req: InternalAxiosRequestConfig) => {
+  (req: any) => {
     const token = localStorage.getItem("token");
 
     if (token && req.headers) {
@@ -23,7 +23,7 @@ API.interceptors.request.use(
 // ⚠️ Global response error handler
 API.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
+  (error: any) => {
     // Handle unauthorized (token expired, etc.)
     if (error.response?.status === 401) {
       console.warn("Unauthorized - logging out");

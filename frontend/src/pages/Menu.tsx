@@ -24,7 +24,7 @@ export default function Menu() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await API.get("/menu");
+        const res = await API.get<Product[]>("/menu");
         setProducts(res.data);
       } catch (err) {
         console.error(err);
@@ -213,7 +213,7 @@ export default function Menu() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate("/checkout")}
+          onClick={() => navigate("/cart")}
           className="flex items-center gap-3 bg-primary text-on-primary px-5 py-4 rounded-3xl shadow-2xl shadow-primary/40"
         >
           <ShoppingCart size={20} fill="currentColor" />

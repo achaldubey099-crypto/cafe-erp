@@ -1,6 +1,7 @@
 // PRODUCT (Menu Item)
 export interface Product {
   _id: string; // backend compatible
+  id?: string; // legacy/static data compatibility
   name: string;
   description?: string;
   price: number;
@@ -9,6 +10,8 @@ export interface Product {
   isFeatured?: boolean;
 }
 
+export type MenuItem = Product;
+
 // CART ITEM
 export interface CartItem extends Product {
   quantity: number;
@@ -16,7 +19,7 @@ export interface CartItem extends Product {
 
 // ORDER ITEM (important for backend)
 export interface OrderItem {
-  productId: string;
+  itemId: string | number;
   name: string;
   price: number;
   quantity: number;
@@ -29,10 +32,16 @@ export interface Order {
 
   items: OrderItem[];
 
-  total: number;
+  grandTotal: number;
 
-  status: "pending" | "preparing" | "ready" | "completed";
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
 
-  // optional (future use)
+  tableId?: number;
+  totalAmount?: number;
+  platformFee?: number;
+  serviceTax?: number;
+  paymentMethod?: string;
+  estimatedTime?: string;
+  orderNumber?: number;
   userId?: string;
 }

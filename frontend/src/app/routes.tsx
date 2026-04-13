@@ -7,8 +7,8 @@ import Cart from "../pages/Cart";
 import Checkout from "../pages/Checkout";
 
 // admin pages
-import Dashboard from "../admin/pages/Dashboard";
-import Orders from "../admin/pages/Orders";
+import Dashboard from "../admin/AdminDashboard";
+import Orders from "../admin/AdminOrders";
 import AdminLogin from "../admin/pages/AdminLogin";
 
 export default function AppRoutes() {

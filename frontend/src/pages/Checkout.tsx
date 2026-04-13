@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
 import API from "../lib/api";
+import { getTableId } from "../lib/table";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -33,17 +34,28 @@ export default function Checkout() {
 
   const total = subtotal + platformFee + tax;
   const perPerson = total / people;
+  const tableId = getTableId();
 
   // 🔥 PLACE ORDER
   const handleOrder = async () => {
     try {
       await API.post("/orders", {
-        items: cart,
-        total,
+        tableId,
+        items: cart.map((item, index) => ({
+          itemId: index + 1,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        paymentMethod: "UPI",
+        splitBill: {
+          isSplit: people > 1,
+          peopleCount: people,
+        },
       });
 
       clearCart();
-      navigate("/orders");
+      navigate(`/orders?tableId=${tableId}`);
     } catch (err) {
       console.error(err);
     }
