@@ -12,8 +12,13 @@ import {
   LogOut
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminSidebar() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
   const navItems = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/admin/pos', icon: Store, label: 'POS' },
@@ -59,7 +64,13 @@ export default function AdminSidebar() {
           <Settings size={20} />
           <span>Settings</span>
         </NavLink>
-        <button className="w-full flex items-center gap-3 px-4 py-3 text-secondary hover:text-red-600 hover:bg-red-50 rounded-xl font-headline font-medium text-sm transition-all">
+        <button 
+          onClick={() => {
+            logout();
+            navigate('/admin/login');
+          }}
+          className="w-full flex items-center gap-3 px-4 py-3 text-secondary hover:text-red-600 hover:bg-red-50 rounded-xl font-headline font-medium text-sm transition-all"
+        >
           <LogOut size={20} />
           <span>Logout</span>
         </button>

@@ -14,22 +14,41 @@ export default function ProtectedRoute({
     ? localStorage.getItem("customerToken")
     : localStorage.getItem("token");
 
-  // 🔐 Not logged in
-  if (!token) {
+  // Check if token literally says "undefined" or "null" (can happen with bad JS serialization)
+  if (!token || token === "undefined" || token === "null") {
+    // Clear bad data if any
+    if (role === "admin") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    } else {
+      localStorage.removeItem("customerToken");
+      localStorage.removeItem("customerUser");
+    }
     return <Navigate to={role === "user" ? "/login" : "/admin/login"} replace />;
   }
 
   // 🛡️ Role-based protection
-  // If we have a token but user isn't loaded yet, wait (avoid redirecting to `/` on refresh)
   if (role) {
     const activeUser = role === "user" ? customer : user;
 
     if (!activeUser) {
-      return null; // let auth context hydrate from localStorage
+      // If there's a token but the context hasn't hydrated user...
+      // Check if user is even in localStorage to hydrate from
+      const storedKey = role === "user" ? "customerUser" : "user";
+      const storedUser = localStorage.getItem(storedKey);
+      
+      if (!storedUser || storedUser === "undefined" || storedUser === "null") {
+        // Unrecoverable state: token exists but user data is gone or corrupted
+        localStorage.removeItem(role === "user" ? "customerToken" : "token");
+        localStorage.removeItem(storedKey);
+        return <Navigate to={role === "user" ? "/login" : "/admin/login"} replace />;
+      }
+      
+      return null; // Let auth context hydrate from localStorage
     }
 
     if (activeUser.role !== role) {
-      return <Navigate to="/" replace />;
+      return <Navigate to={role === "user" ? "/login" : "/admin/login"} replace />;
     }
   }
 
