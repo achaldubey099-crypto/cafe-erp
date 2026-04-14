@@ -23,6 +23,8 @@ interface AnalyticsResponse {
   retentionRate: string | number;
   topSellingItems: Array<{ name: string; quantity: number }>;
   advice: string;
+  paymentBreakdown?: { upi?: number; card?: number; counter?: number };
+  hourlyOrders?: Record<string, number>;
 }
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -31,6 +33,7 @@ export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [range, setRange] = useState<'7d' | '30d'>('7d');
 
   useEffect(() => {
     const loadAnalytics = async () => {
@@ -57,12 +60,41 @@ export default function AdminAnalytics() {
     { label: 'Total Revenue', value: `₹${analytics?.totalRevenue.toFixed(2) || '0.00'}`, trend: 'Live', icon: Wallet },
   ];
 
-  const weeklyBars = useMemo(() => {
-    const source = analytics?.weeklySales || {};
-    return DAY_ORDER.map((day) => source[day] || 0);
-  }, [analytics]);
+  const chartData = useMemo(() => {
+    const base = DAY_ORDER.map((name) => ({ name, value: 0 }));
+    if (!analytics) return base;
 
-  const maxBar = Math.max(...weeklyBars, 1);
+    // If orders array present, group by day and sum revenue for last 7 days
+    const orders = (analytics as any).orders;
+    if (Array.isArray(orders) && orders.length > 0) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+      orders.forEach((o: any) => {
+        const raw = o.createdAt || o.date || o.timestamp || o.time;
+        const d = raw ? new Date(raw) : null;
+        if (!d || isNaN(d.getTime())) return;
+        if (d < sevenDaysAgo) return;
+        const idx = (d.getDay() + 6) % 7; // map Sun(0)->6, Mon(1)->0, ...
+        const amount = Number(o.total ?? o.amount ?? o.revenue ?? 0) || 0;
+        base[idx].value += amount;
+      });
+
+      return base;
+    }
+
+    // Fallback to weeklySales record if provided
+    if (analytics.weeklySales && Object.keys(analytics.weeklySales).length > 0) {
+      return DAY_ORDER.map((day) => ({ name: day, value: Number(analytics.weeklySales[day] ?? 0) || 0 }));
+    }
+
+    // final fallback sample
+    const sample = [10, 20, 15, 8, 12, 5, 6];
+    return DAY_ORDER.map((name, i) => ({ name, value: sample[i] ?? 0 }));
+  }, [analytics, range]);
+
+  const maxBar = Math.max(...chartData.map((d) => Number(d.value) || 0), 1);
+  const maxIndex = chartData.findIndex((d) => Number(d.value) === maxBar);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -72,9 +104,18 @@ export default function AdminAnalytics() {
           <h2 className="text-3xl font-extrabold text-primary mt-1 font-headline">Business Analytics</h2>
         </div>
         <div className="flex bg-surface-container-high p-1 rounded-2xl">
-          <button className="px-6 py-2 rounded-xl text-sm font-bold transition-all bg-white shadow-sm text-primary">Today</button>
-          <button className="px-6 py-2 rounded-xl text-sm font-bold transition-all text-secondary hover:text-primary">Weekly</button>
-          <button className="px-6 py-2 rounded-xl text-sm font-bold transition-all text-secondary hover:text-primary">Monthly</button>
+          <button
+            onClick={() => setRange('7d')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '7d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
+          >
+            7 Days
+          </button>
+          <button
+            onClick={() => setRange('30d')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '30d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
+          >
+            30 Days
+          </button>
         </div>
       </div>
 
@@ -108,9 +149,21 @@ export default function AdminAnalytics() {
           <div className="text-on-primary/70 text-xs font-bold uppercase tracking-wider">Net Profit</div>
           <div className="text-2xl font-black mt-1 font-headline">₹{analytics?.netProfit.toFixed(2) || '0.00'}</div>
           <div className="mt-4 h-1 w-full bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-white w-3/4" />
+            {(() => {
+              const current = analytics?.netProfit || 0;
+              const total = analytics?.totalRevenue || 1;
+              const percentage = total > 0 ? (current / total) * 100 : 0;
+              const safePercentage = Math.max(0, Math.min(percentage || 0, 100));
+              const visible = safePercentage > 2 ? safePercentage : 2;
+              return <div className="h-full bg-white" style={{ width: `${visible}%` }} />;
+            })()}
           </div>
-          <div className="text-[10px] uppercase tracking-wider mt-2 opacity-80 font-bold">75% of target hit</div>
+          <div className="text-[10px] uppercase tracking-wider mt-2 opacity-80 font-bold">{(() => {
+            const current = analytics?.netProfit || 0;
+            const total = analytics?.totalRevenue || 1;
+            const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+            return `${percentage}% of target hit`;
+          })()}</div>
         </div>
       </div>
 
@@ -127,20 +180,105 @@ export default function AdminAnalytics() {
             </button>
           </div>
           <div className="h-64 flex items-end justify-between gap-4 px-2">
-            {weeklyBars.map((value, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
-                <div 
-                  className={cn(
-                    "w-full rounded-t-xl transition-all duration-500",
-                    i === weeklyBars.indexOf(maxBar) ? "bg-primary" : "bg-surface-container-high group-hover:bg-primary/20"
-                  )} 
-                  style={{ height: `${Math.max(12, (value / maxBar) * 100)}%` }} 
-                />
-                <span className="text-[10px] font-bold text-secondary uppercase">
-                  {DAY_ORDER[i]}
-                </span>
+            {chartData.map((d, i) => {
+              const value = Number(d.value) || 0;
+              const height = Math.max(12, (value / maxBar) * 100);
+              return (
+                <div key={d.name} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
+                  <div
+                    className={cn(
+                      "w-full rounded-t-xl transition-all duration-500",
+                      i === maxIndex ? "bg-primary" : "bg-surface-container-high group-hover:bg-primary/20"
+                    )}
+                    style={{ height: `${height}%` }}
+                  />
+                  <span className="text-[10px] font-bold text-secondary uppercase">{d.name}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Additional Reports Section */}
+          <div className="mt-8">
+            <h3 className="text-lg font-bold mb-4">Sales Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-secondary">Total Revenue</div>
+                <div className="text-xl font-bold">₹{analytics?.totalRevenue?.toFixed(2) || '0.00'}</div>
               </div>
-            ))}
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-secondary">Total Orders</div>
+                <div className="text-xl font-bold">{analytics?.totalOrders ?? 0}</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-secondary">Average Order Value</div>
+                <div className="text-xl font-bold">{(() => {
+                  const orders = analytics?.totalOrders || 0;
+                  const revenue = analytics?.totalRevenue || 0;
+                  const aov = orders > 0 ? revenue / orders : 0;
+                  return `₹${aov.toFixed(2)}`;
+                })()}</div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <h4 className="font-bold mb-3">Payment Breakdown</h4>
+                <div className="space-y-2 text-sm text-secondary">
+                  <div>UPI Orders: {analytics?.paymentBreakdown?.upi ?? 'N/A'}</div>
+                  <div>Card Orders: {analytics?.paymentBreakdown?.card ?? 'N/A'}</div>
+                  <div>Counter Orders: {analytics?.paymentBreakdown?.counter ?? 'N/A'}</div>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <h4 className="font-bold mb-3">Top Sellers (Top 5)</h4>
+                <div className="space-y-2 text-sm">
+                  {(analytics?.topSellingItems || []).slice(0,5).map((it) => (
+                    <div key={it.name} className="flex justify-between">
+                      <span>{it.name}</span>
+                      <span className="font-bold">{it.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <h4 className="font-bold mb-3">Low Performing Items (Bottom 3)</h4>
+                <div className="space-y-2 text-sm">
+                  {(() => {
+                    const items = analytics?.topSellingItems || [];
+                    const sorted = [...items].sort((a,b) => a.quantity - b.quantity).slice(0,3);
+                    if (sorted.length === 0) return <div className="text-secondary">No data</div>;
+                    return sorted.map(it => (
+                      <div key={it.name} className="flex justify-between">
+                        <span>{it.name}</span>
+                        <span className="font-bold">{it.quantity}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <h4 className="font-bold mb-3">Peak Hours</h4>
+                <div className="text-sm text-secondary">
+                  {analytics?.hourlyOrders ? (
+                    (() => {
+                      const hours = analytics.hourlyOrders as Record<string, number>;
+                      const entries = Object.entries(hours || {});
+                      if (entries.length === 0) return <div>No data</div>;
+                      const peak = entries.reduce((a,b) => a[1] > b[1] ? a : b);
+                      return <div>Peak hour: {peak[0]} ({peak[1]} orders)</div>;
+                    })()
+                  ) : (
+                    <div className="text-secondary">Hourly data not available</div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

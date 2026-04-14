@@ -293,7 +293,17 @@ export default function Checkout() {
           </div>
 
           <button
-            onClick={() => handlePayment()}
+              onClick={() => {
+                if (String(paymentMethod).toLowerCase() === "counter") {
+                  if (typeof placeOrder === "function") {
+                    placeOrder();
+                  }
+                } else {
+                  if (typeof handlePayment === "function") {
+                    handlePayment();
+                  }
+                }
+              }}
             className="w-full h-[64px] bg-primary text-white rounded-2xl font-bold flex items-center justify-between px-7 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] transition-all"
           >
             <span className="text-lg">Place Order</span>

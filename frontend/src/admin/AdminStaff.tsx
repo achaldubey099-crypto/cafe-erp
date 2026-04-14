@@ -157,8 +157,21 @@ export default function AdminStaff() {
                   <td className="px-8 py-5 text-xs text-secondary font-medium">{member.lastActive || '—'}</td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => handleEdit(member)} className="px-3 py-1.5 text-[10px] font-bold text-secondary hover:text-primary hover:bg-surface-container rounded-lg transition-colors">Edit</button>
-                      <button onClick={() => handleDelete(member._id)} className="p-2 rounded-lg text-secondary hover:bg-surface-container transition-all">Delete</button>
+                      <button
+                        onClick={() => handleEdit(member)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all duration-200"
+                      >
+                        <Edit2 size={14} />
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(member._id)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all duration-200"
+                      >
+                        <X size={14} />
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

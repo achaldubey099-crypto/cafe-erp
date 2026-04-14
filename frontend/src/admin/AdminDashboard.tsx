@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { TrendingUp, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import API from "../lib/api";
 
 interface AnalyticsResponse {
@@ -17,9 +18,11 @@ interface AnalyticsResponse {
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [range, setRange] = useState<"7d" | "30d">("7d");
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -43,8 +46,13 @@ export default function AdminDashboard() {
 
   const weeklyBars = useMemo(() => {
     const source = analytics?.weeklySales || {};
-    return DAY_ORDER.map((day) => source[day] || 0);
-  }, [analytics]);
+    // Currently analytics provides weekly sales by day names. Range is wired
+    // so UI can toggle; data filtering/fetching can be extended later.
+    const bars = DAY_ORDER.map((day) => source[day] || 0);
+    // If 30d selected, keep same weekly visualization for now to avoid
+    // breaking the existing chart — this wires the range state to the component.
+    return bars;
+  }, [analytics, range]);
 
   const maxBar = Math.max(...weeklyBars, 1);
 
@@ -76,14 +84,21 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-500">Today's Sales</p>
           <h2 className="text-3xl font-bold">₹{analytics?.todaysSales.toFixed(2) || "0.00"}</h2>
           <div className="mt-4 h-1 bg-gray-200 rounded-full">
-            <div className="w-[65%] h-1 bg-primary rounded-full"></div>
+            {(() => {
+              const current = analytics?.todaysSales || 0;
+              const total = analytics?.totalRevenue || 1;
+              const percentage = total > 0 ? (current / total) * 100 : 0;
+              const safePercentage = Math.max(0, Math.min(percentage || 0, 100));
+              const visible = safePercentage > 2 ? safePercentage : 2;
+              return <div style={{ width: `${visible}%` }} className="h-1 bg-primary rounded-full" />;
+            })()}
           </div>
 
           <p className="text-xs text-gray-400 mt-2">Live from `analyticsController`</p>
         </div>
 
         {/* ORDERS */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm ">
+        <div className="bg-white p-6 rounded-2xl shadow-sm " onClick={() => navigate('/admin/pos')}>
           <div className="flex justify-between mb-4">
             <div className="bg-blue-100 p-3 rounded-xl">
               🛒
@@ -120,7 +135,7 @@ export default function AdminDashboard() {
           <p className="text-sm opacity-80">Net Profit (Monthly)</p>
           <h2 className="text-3xl font-bold">₹{analytics?.netProfit.toFixed(2) || "0.00"}</h2>
 
-          <button className="mt-6 w-full bg-white/20 hover:bg-white/30 transition rounded-xl py-2 flex items-center justify-center gap-2">
+          <button onClick={() => navigate('/admin/analytics')} className="mt-6 w-full bg-white/20 hover:bg-white/30 transition rounded-xl py-2 flex items-center justify-center gap-2">
             View Report <ArrowRight size={16} />
           </button>
         </div>
@@ -140,8 +155,18 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-lg">Weekly Sales Performance</h2>
             <div className="flex gap-2 text-sm">
-              <button className="bg-gray-200 px-3 py-1 rounded-full">7 Days</button>
-              <button className="px-3 py-1">30 Days</button>
+              <button
+                onClick={() => setRange('7d')}
+                className={`${range === '7d' ? 'bg-gray-300' : 'bg-gray-200'} px-3 py-1 rounded-full`}
+              >
+                7 Days
+              </button>
+              <button
+                onClick={() => setRange('30d')}
+                className={`${range === '30d' ? 'bg-gray-300' : ''} px-3 py-1 rounded-full`}
+              >
+                30 Days
+              </button>
             </div>
           </div>
 
@@ -175,7 +200,7 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          <button className="mt-6 text-sm text-primary font-bold">
+          <button className="mt-6 text-sm text-primary font-bold" onClick={() => navigate('/admin/analytics')}>
             Full Menu Analytics →
           </button>
         </div>
@@ -185,7 +210,7 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-2xl shadow-sm ">
         <div className="p-6 flex justify-between">
           <h2 className="font-bold text-lg">Recent Orders</h2>
-          <span className="text-primary text-sm cursor-pointer">View All</span>
+          <span className="text-primary text-sm cursor-pointer" onClick={() => navigate('/admin/orders')}>View All</span>
         </div>
 
         <div className="divide-y">

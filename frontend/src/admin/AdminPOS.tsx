@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Clock, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
 
 import API from "../lib/api";
@@ -50,6 +50,8 @@ export default function AdminPOS() {
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // refs for printable bill sections per order
+  const billRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const menuByItemId = useMemo(() => {
     const map = new Map<number, Product>();
@@ -165,6 +167,77 @@ export default function AdminPOS() {
     }
   };
 
+  const handlePrint = (orderId: string) => {
+    const billEl = billRefs.current[orderId];
+    const order = orders.find((o) => o._id === orderId) as PosOrder | undefined;
+    if (!billEl && !order) return;
+
+    const items = order?.items || [];
+    const tableNumber = order?.tableId ?? selectedTable ?? '';
+    const totalAmount = order?.grandTotal ?? items.reduce((s, it) => s + (it.price * it.quantity), 0);
+
+    const printContents = `
+      <html>
+      <head>
+        <title>Bill</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 16px; font-size:14px; }
+          h2 { text-align: center; margin-bottom: 4px; }
+          .info { text-align: center; margin-bottom: 10px; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { padding: 6px; text-align: left; border-bottom: 1px solid #ddd; }
+          th { font-weight: bold; }
+          .right { text-align: right; }
+          .total { font-weight: bold; border-top: 2px solid #000; }
+          .footer { text-align: center; margin-top: 12px; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <h2>Cafe Name</h2>
+        <div class="info">Table: ${tableNumber} <br/> Date: ${new Date().toLocaleString()}</div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="right">Qty</th>
+              <th class="right">Price</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item) => `
+              <tr>
+                <td>${(item.name || '').toString().replace(/</g,'&lt;')}</td>
+                <td class="right">${item.quantity}</td>
+                <td class="right">₹${(item.price).toFixed(2)}</td>
+                <td class="right">₹${(item.price * item.quantity).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="total">
+              <td colspan="3">Grand Total</td>
+              <td class="right">₹${(totalAmount).toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="footer">Thank you! Visit again ☕</div>
+      </body>
+      </html>
+    `;
+
+    const newWindow = window.open("", "", "width=800,height=600");
+    if (!newWindow) return;
+
+    newWindow.document.write(printContents);
+    newWindow.document.close();
+    newWindow.focus();
+    newWindow.print();
+    newWindow.close();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end">
@@ -252,7 +325,7 @@ export default function AdminPOS() {
                   </span>
                 </div>
 
-                <div className="mt-3 space-y-2">
+                <div className="mt-3 space-y-2" ref={(el) => (billRefs.current[order._id] = el)}>
                   {order.items.map((item, idx) => {
                     const menuItem = menuByItemId.get(item.itemId);
                     const name = item.name || menuItem?.name || `Item ${item.itemId}`;
@@ -268,6 +341,12 @@ export default function AdminPOS() {
                 <div className="mt-3 pt-3 border-t border-outline/10 flex justify-between items-center">
                   <p className="font-headline font-bold text-primary">₹{order.grandTotal.toFixed(2)}</p>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePrint(order._id)}
+                      className="mt-0 text-xs px-2 py-1 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition-all"
+                    >
+                      🖨️ Print Bill
+                    </button>
                     <select
                       value={order.status}
                       onChange={(e) => updateOrderStatus(order._id, e.target.value as OngoingStatus)}
