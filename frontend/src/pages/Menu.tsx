@@ -153,8 +153,6 @@ const featuredProduct = products.find((p) => p.isFeatured);
 
 // Combine category filtering with search (case-insensitive)
 const filteredProducts = products.filter((p) => {
-  if (p.isFeatured) return false;
-
   const term = searchTerm.trim().toLowerCase();
   const matchesSearch = !term || (p.name || "").toLowerCase().includes(term);
 

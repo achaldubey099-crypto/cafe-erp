@@ -17,7 +17,7 @@ export default function Cart() {
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <div className="bg-background min-h-screen pb-40">
+    <div className="bg-background min-h-screen pb-56">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm flex items-center px-4 h-16">
         <div className="flex items-center w-full justify-between">
@@ -123,7 +123,7 @@ export default function Cart() {
 
       {/* Bottom Checkout Bar */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 w-full bg-background border-t border-surface-container p-4">
+        <div className="fixed bottom-24 left-0 w-full z-40 bg-background border-t border-surface-container p-4">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <div>
               <p className="text-xs text-secondary">Total</p>

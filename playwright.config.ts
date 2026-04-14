@@ -10,7 +10,7 @@ export default defineConfig({
     ['json', { outputFile: 'playwright-results.json' }],
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'off',

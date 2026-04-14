@@ -105,7 +105,7 @@ export default function Checkout() {
   };
 
   return (
-    <div className="bg-background min-h-screen pb-64">
+    <div className="bg-background min-h-screen pb-80">
       {/* HEADER */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md flex justify-between items-center px-6 py-4">
         <div className="flex items-center gap-4">
@@ -210,7 +210,7 @@ export default function Checkout() {
       </main>
 
       {/* FOOTER */}
-      <footer className="fixed bottom-0 left-0 w-full bg-white px-6 py-5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] z-[9999]">
+      <footer className="fixed bottom-24 left-0 w-full bg-white px-6 py-5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] z-[9999]">
         <div className="flex flex-col gap-5 max-w-md mx-auto relative pb-safe">
           
           <div>

@@ -35,8 +35,8 @@ test.describe('Menu Page', () => {
     
     if (count > 1) {
       await categoryButtons.nth(1).click();
-      // The "Menu" heading should still be visible
-      await expect(page.locator('text=Menu')).toBeVisible();
+      // The category heading should still render after switching tabs
+      await expect(page.locator('h2')).toContainText('Menu');
     }
   });
 

@@ -63,12 +63,12 @@ test.describe('Checkout Page', () => {
     
     await expect(page.locator('text=Split Bill')).toBeVisible({ timeout: 5000 });
     
-    // Click + to increase people count
-    const plusButton = page.locator('section:has-text("Split Bill") button:has(svg.lucide-plus)');
+    const splitSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Split Bill' }) });
+    const plusButton = splitSection.locator('button').nth(1);
     await plusButton.click();
     
     // People count should now show 2
-    await expect(page.locator('section:has-text("Split Bill")').locator('text=2')).toBeVisible();
+    await expect(splitSection.locator('span').filter({ hasText: /^2$/ })).toBeVisible();
   });
 
   test('subtotal, platform fee, tax, and total display', async ({ page }) => {

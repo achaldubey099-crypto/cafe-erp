@@ -41,9 +41,10 @@ test.describe('Order Tracking Page', () => {
   test('progress timeline has 3 steps', async ({ page }) => {
     await page.goto('/orders');
     
-    await expect(page.locator('text=Pending')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=Preparing')).toBeVisible();
-    await expect(page.getByText('Ready', { exact: true })).toBeVisible();
+    const timeline = page.locator('main');
+    await expect(timeline.getByText('Pending', { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(timeline.getByText('Preparing', { exact: true }).last()).toBeVisible();
+    await expect(timeline.getByText('Ready', { exact: true }).last()).toBeVisible();
   });
 
   test('back button navigates to home', async ({ page }) => {
