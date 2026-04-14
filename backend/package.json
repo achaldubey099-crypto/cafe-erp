@@ -20,6 +20,7 @@
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
+    "csv-parser": "^3.2.0",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.2",

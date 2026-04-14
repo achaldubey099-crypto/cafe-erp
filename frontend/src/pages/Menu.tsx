@@ -32,34 +32,49 @@ const cropCloudinaryImage = (url = "", width: number, height: number) => {
 export default function Menu() {
   const navigate = useNavigate();
 
-  const [activeCategory, setActiveCategory] = useState("Coffee");
+  const [activeCategory, setActiveCategory] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { customer, logoutCustomer } = useAuth();
   const isLoggedIn = !!customer;
-
-  const categories = ["Coffee", "Snacks", "Desserts", "Teas", "Seasonal"];
+  const [categories, setCategories] = useState([]);
 
   // 🔥 Fetch products from backend
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await API.get<Product[]>("/menu");
-        setProducts(res.data);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load menu");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchProducts = async () => {
+    try {
+      const res = await API.get<Product[]>("/menu");
+      setProducts(res.data);
 
-    fetchProducts();
-  }, []);
+      // 🔥 Extract unique categories
+      const uniqueCategories = [
+        ...new Set(res.data.map((item) => item.category))
+      ].sort();
+
+      // 🔥 Add "All" category at top
+      const finalCategories = ["All", ...uniqueCategories];
+
+      setCategories(finalCategories);
+
+      // 🔥 Set default category
+      setActiveCategory("All");
+
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load menu");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProducts();
+}, []);
+
 
   // Fetch user favorites if logged in
   useEffect(() => {
@@ -133,13 +148,23 @@ export default function Menu() {
     navigate("/");
   };
 
-  // 🔥 Filtering logic (✅ FIXED HERE)
-  const featuredProduct = products.find((p) => p.isFeatured);
+ // 🔥 Filtering logic (FINAL FIXED)
+const featuredProduct = products.find((p) => p.isFeatured);
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.category.toLowerCase() === activeCategory.toLowerCase()
-  );
+// Combine category filtering with search (case-insensitive)
+const filteredProducts = products.filter((p) => {
+  if (p.isFeatured) return false;
+
+  const term = searchTerm.trim().toLowerCase();
+  const matchesSearch = !term || (p.name || "").toLowerCase().includes(term);
+
+  const matchesCategory =
+    activeCategory === "All" || !activeCategory
+      ? true
+      : p.category.toLowerCase() === activeCategory.toLowerCase();
+
+  return matchesCategory && matchesSearch;
+});
 
   // 🔥 Cart calculations
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -205,6 +230,8 @@ export default function Menu() {
             </div>
             <input
               type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search your favorite brew..."
               className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/40 text-on-surface placeholder-on-surface-variant/60 font-medium transition-all outline-none"
             />
