@@ -94,6 +94,12 @@ export default function AdminOrders() {
 
   useEffect(() => {
     loadOrders();
+
+    const interval = setInterval(() => {
+      loadOrders();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const visibleOrders = useMemo(() => {
@@ -115,8 +121,8 @@ export default function AdminOrders() {
   const handleStatusUpdate = async (orderId: string, status: UpdatableStatus) => {
     try {
       setError("");
-      const res = await API.put<{ order: AdminOrder }>(`/admin-orders/${orderId}/status`, { status });
-      const updated = res.data.order;
+      const res = await API.put<{ order: AdminOrder }>(`/orders/${orderId}`, { status });
+      const updated = res.data.order || res.data;
       setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, ...updated } : o)));
     } catch (err: any) {
       console.error(err);

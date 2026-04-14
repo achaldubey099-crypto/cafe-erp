@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   HelpCircle,
@@ -7,10 +7,8 @@ import {
   QrCode,
   CreditCard,
   Wallet,
-  ShieldCheck,
   ArrowRight,
 } from "lucide-react";
-import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
@@ -22,8 +20,24 @@ export default function Checkout() {
   const { cart, clearCart } = useCart();
 
   const [people, setPeople] = useState(1);
+  const [sessionId, setSessionId] = useState("");
 
-  // 🔥 REAL CALCULATIONS
+  // ✅ GET TABLE
+  const tableId = getTableId();
+
+  // ✅ CREATE SESSION (ONLY ONCE)
+  useEffect(() => {
+    let existingSession = localStorage.getItem("sessionId");
+
+    if (!existingSession && tableId) {
+      existingSession = Date.now() + "_" + tableId;
+      localStorage.setItem("sessionId", existingSession);
+    }
+
+    setSessionId(existingSession || "");
+  }, [tableId]);
+
+  // 🔥 CALCULATIONS
   const subtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
@@ -34,61 +48,61 @@ export default function Checkout() {
 
   const total = subtotal + platformFee + tax;
   const perPerson = total / people;
-  const tableId = getTableId();
 
-  // 🔥 PLACE ORDER
-  const handleOrder = async () => {
+  // ================= PLACE ORDER =================
+  const placeOrder = async (paymentMethod: string) => {
     try {
-      await API.post("/orders", {
+      // ❌ VALIDATION
+      if (!tableId) {
+        alert("Table not found. Please scan QR again.");
+        return;
+      }
+
+      if (!cart || cart.length === 0) {
+        alert("Cart is empty");
+        return;
+      }
+
+      const orderData = {
         tableId,
+        sessionId,
         items: cart.map((item, index) => ({
           itemId: index + 1,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
         })),
-        paymentMethod: "UPI",
+        paymentMethod,
         splitBill: {
           isSplit: people > 1,
           peopleCount: people,
         },
-      });
+      };
+
+      console.log("📦 Sending Order:", orderData);
+
+      const res = await API.post("/orders", orderData);
+
+      console.log("✅ Order Success:", res.data);
+
+      alert("Order placed successfully!");
 
       clearCart();
-      navigate(`/orders?tableId=${tableId}`);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
-  // 🔥 PLACE ORDER WITHOUT PAYMENT
-  const handleOrderNoPayment = async () => {
-    try {
-      await API.post("/orders", {
-        tableId,
-        items: cart.map((item, index) => ({
-          itemId: index + 1,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        paymentMethod: "none",
-        splitBill: {
-          isSplit: people > 1,
-          peopleCount: people,
-        },
-      });
-
-      clearCart();
       navigate(`/orders?tableId=${tableId}`);
-    } catch (err) {
-      console.error(err);
+
+    } catch (err: any) {
+      console.error("❌ Order Failed:", err.response?.data || err.message);
+
+      alert(
+        err.response?.data?.message || "Failed to place order. Try again."
+      );
     }
   };
 
   return (
     <div className="bg-background min-h-screen pb-48">
-      {/* Header */}
+      {/* HEADER */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md flex justify-between items-center px-6 py-4">
         <div className="flex items-center gap-4">
           <button
@@ -97,21 +111,21 @@ export default function Checkout() {
           >
             <ArrowLeft size={20} className="text-primary" />
           </button>
-          <h1 className="font-headline font-bold text-lg text-primary">
+          <h1 className="font-bold text-lg text-primary">
             Finalize Order
           </h1>
         </div>
         <HelpCircle size={20} className="text-secondary" />
       </header>
 
+      {/* MAIN */}
       <main className="pt-24 px-6 space-y-8 max-w-md mx-auto">
-        {/* CART ITEMS */}
+        
+        {/* CART */}
         <section className="space-y-4">
           <div className="flex justify-between items-end">
-            <h2 className="font-headline text-2xl font-extrabold">
-              Your Tray
-            </h2>
-            <span className="text-xs font-bold text-secondary uppercase">
+            <h2 className="text-2xl font-bold">Your Tray</h2>
+            <span className="text-xs text-secondary">
               {cart.length} ITEMS
             </span>
           </div>
@@ -119,23 +133,20 @@ export default function Checkout() {
           <div className="bg-white rounded-3xl p-5 space-y-4 shadow-xl">
             {cart.map((item) => (
               <div key={item._id} className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-16 h-16 rounded-2xl object-cover"
+                />
 
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <span className="font-bold">{item.name}</span>
-                    <span>₹{item.price * item.quantity}</span>
+                <div className="flex-1 flex justify-between">
+                  <div>
+                    <p className="font-bold">{item.name}</p>
+                    <p className="text-xs text-secondary">
+                      Qty: {item.quantity}
+                    </p>
                   </div>
-
-                  <span className="text-xs text-secondary">
-                    Qty: {item.quantity}
-                  </span>
+                  <span>₹{item.price * item.quantity}</span>
                 </div>
               </div>
             ))}
@@ -145,26 +156,20 @@ export default function Checkout() {
         {/* SPLIT BILL */}
         <section className="bg-primary-container/10 rounded-3xl p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-primary">Split Bill</h3>
+            <h3 className="font-bold">Split Bill</h3>
           </div>
 
           <div className="flex justify-between items-center bg-white rounded-2xl p-4">
             <span>People</span>
 
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => setPeople(Math.max(1, people - 1))}
-                className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center"
-              >
+              <button onClick={() => setPeople(Math.max(1, people - 1))}>
                 <Minus size={16} />
               </button>
 
-              <span className="font-bold">{people}</span>
+              <span>{people}</span>
 
-              <button
-                onClick={() => setPeople(people + 1)}
-                className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center"
-              >
+              <button onClick={() => setPeople(people + 1)}>
                 <Plus size={16} />
               </button>
             </div>
@@ -172,31 +177,7 @@ export default function Checkout() {
 
           <div className="mt-4 flex justify-between">
             <span>Per Person</span>
-            <span className="font-bold text-primary">
-              ₹{perPerson.toFixed(0)}
-            </span>
-          </div>
-        </section>
-
-        {/* PAYMENT */}
-        <section>
-          <h3 className="font-bold mb-3">Payment Method</h3>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-4 rounded-xl bg-primary text-white text-center">
-              <QrCode />
-              <p className="text-xs mt-1">UPI</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-gray-200 text-center">
-              <CreditCard />
-              <p className="text-xs mt-1">Card</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-gray-200 text-center">
-              <Wallet />
-              <p className="text-xs mt-1">Wallet</p>
-            </div>
+            <span>₹{perPerson.toFixed(0)}</span>
           </div>
         </section>
 
@@ -225,21 +206,26 @@ export default function Checkout() {
       </main>
 
       {/* FOOTER */}
-      <footer className="fixed bottom-0 w-full bg-white p-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+      <footer className="fixed bottom-0 w-full bg-white p-4 shadow-md">
         <div className="flex flex-col gap-3">
+          
+          {/* PAY LATER */}
           <button
-            onClick={handleOrderNoPayment}
-            className="w-full h-14 bg-surface-container-low border border-outline/10 text-primary rounded-2xl font-bold flex justify-center items-center px-6 active:scale-95 transition-transform"
+            onClick={() => placeOrder("UPI")}
+            className="h-14 border rounded-2xl font-bold"
           >
-            Place Order (Pay Later or Cash)
+            Place Order (Pay Later / Cash)
           </button>
+
+          {/* PAY ONLINE */}
           <button
-            onClick={handleOrder}
-            className="w-full h-14 bg-primary text-white rounded-2xl font-bold flex items-center justify-between px-6 active:scale-95 transition-transform shadow-lg shadow-primary/20"
+            onClick={() => placeOrder("UPI")}
+            className="h-14 bg-primary text-white rounded-2xl font-bold flex justify-between px-6"
           >
             <span>Pay Online</span>
-            <span className="flex items-center gap-2">₹{total} <ArrowRight size={18} /></span>
+            <span>₹{total} →</span>
           </button>
+
         </div>
       </footer>
     </div>

@@ -14,13 +14,13 @@ connectDB();
 
 // ================= MIDDLEWARE =================
 
-// ✅ CORS FIX (SUPPORT MULTIPLE FRONTENDS)
+// ✅ CORS (ALLOW FRONTEND ACCESS)
 app.use(cors({
     origin: ["http://localhost:3000", "http://localhost:5173"],
-    credentials: true
+    credentials: true,
 }));
 
-// Body parser
+// ✅ Body Parser
 app.use(express.json());
 
 // ================= ROUTES =================
@@ -48,19 +48,19 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 
 // ================= API ROUTES =================
 
-// Public APIs
+// ✅ PUBLIC APIs
 app.use('/api/menu', menuRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/orders', orderRoutes); // 🔥 IMPORTANT (used by frontend checkout)
 app.use('/api/categories', categoryRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/favorites', favoriteRoutes);
 
-// Auth & Admin
+// ✅ AUTH & ADMIN
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-orders', adminOrderRoutes);
 
-// 🔐 Protected Admin APIs
+// 🔐 PROTECTED ADMIN APIs
 app.use('/api/staff', protectAdmin, staffRoutes);
 app.use('/api/analytics', protectAdmin, analyticsRoutes);
 app.use('/api/inventory', protectAdmin, inventoryRoutes);
@@ -80,7 +80,7 @@ app.use((req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    console.error("❌ Error:", err.stack);
     res.status(err.status || 500).json({
         message: err.message || "Something went wrong"
     });

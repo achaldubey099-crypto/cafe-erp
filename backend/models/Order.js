@@ -7,6 +7,12 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ✅ SESSION (VERY IMPORTANT for table-based system)
+    sessionId: {
+      type: String,
+      default: null,
+    },
+
     // 👤 USER LINK (for analytics & tracking)
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -108,17 +114,15 @@ const orderSchema = new mongoose.Schema(
     // 🔢 ORDER NUMBER
     orderNumber: {
       type: Number,
-      required: true,
-      unique: true, // ✅ this already creates index
+      unique: true,
+      default: null, // ✅ FIX: prevent crash if not provided
     },
   },
   { timestamps: true }
 );
 
-// ⚡ INDEXES (KEEP ONLY THESE)
+// ⚡ INDEXES
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ status: 1 });
-
-// ❌ REMOVED: orderSchema.index({ orderNumber: 1 });
 
 module.exports = mongoose.model('Order', orderSchema);

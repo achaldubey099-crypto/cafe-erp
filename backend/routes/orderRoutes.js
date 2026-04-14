@@ -10,22 +10,29 @@ const {
     getProfileData
 } = require('../controller/orderController');
 
-// Create Order (checkout)
-router.post('/', createOrder);
 
-// Get All Orders (admin)
-router.get('/', getOrders);
+// ================= USER ROUTES =================
+
+// Create Order (Checkout)
+router.post('/', createOrder);
 
 // Get Orders by Table
 router.get('/table', getOrdersByTable);
 
-// ⭐ Profile API (ADD THIS HERE)
-router.get('/profile', getProfileData);
-
-// Get Latest Order (for order tracking page)
+// Get Latest Order (Order Tracking Page)
 router.get('/latest', getLatestOrderByTable);
 
-// Update Order Status (kitchen flow)
+// Profile Data (if used in user side)
+router.get('/profile', getProfileData);
+
+
+// ================= ADMIN ROUTES =================
+
+// Get All Orders (Admin Panel)
+router.get('/', getOrders);
+
+// Update Order Status (Kitchen Flow)
 router.put('/:id', updateOrderStatus);
+
 
 module.exports = router;

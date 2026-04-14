@@ -1,15 +1,18 @@
 const Order = require('../models/Order');
 
-// Create Order (WITH CART LOGIC)
+
+// ================= CREATE ORDER =================
 exports.createOrder = async (req, res) => {
     try {
         const {
             tableId,
+            sessionId,
             items,
             paymentMethod,
             splitBill
         } = req.body;
 
+        // 🔴 Validation
         if (!tableId || !items || items.length === 0) {
             return res.status(400).json({ message: "Invalid order data" });
         }
@@ -45,14 +48,18 @@ exports.createOrder = async (req, res) => {
 
         const order = await Order.create({
             tableId,
+            sessionId, // ✅ IMPORTANT (added)
             items,
             paymentMethod,
             totalAmount,
             platformFee,
             serviceTax,
             grandTotal,
-            splitBill: splitData
+            splitBill: splitData,
+            status: "pending" // ✅ ensure default
         });
+
+        console.log("✅ Order Created:", order._id); // DEBUG
 
         res.status(201).json({
             message: "Order placed successfully",
@@ -60,21 +67,27 @@ exports.createOrder = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("❌ Create Order Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// Get All Orders
+
+// ================= GET ALL ORDERS (ADMIN) =================
 exports.getOrders = async (req, res) => {
     try {
-        const orders = await Order.find();
+        const orders = await Order.find()
+            .sort({ createdAt: -1 }); // ✅ latest first
+
         res.json(orders);
     } catch (error) {
+        console.error("❌ Get Orders Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// Get Orders by Table
+
+// ================= GET ORDERS BY TABLE =================
 exports.getOrdersByTable = async (req, res) => {
     try {
         const { tableId } = req.query;
@@ -83,14 +96,18 @@ exports.getOrdersByTable = async (req, res) => {
             return res.status(400).json({ message: "tableId is required" });
         }
 
-        const orders = await Order.find({ tableId });
+        const orders = await Order.find({ tableId })
+            .sort({ createdAt: -1 });
+
         res.json(orders);
     } catch (error) {
+        console.error("❌ Get Orders By Table Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// Get Latest Order by Table
+
+// ================= GET LATEST ORDER =================
 exports.getLatestOrderByTable = async (req, res) => {
     try {
         const { tableId } = req.query;
@@ -108,17 +125,19 @@ exports.getLatestOrderByTable = async (req, res) => {
 
         res.json(order);
     } catch (error) {
+        console.error("❌ Get Latest Order Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// Update Order Status (Kitchen Flow)
+
+// ================= UPDATE ORDER STATUS =================
 exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
 
-        const validStatuses = ["pending", "preparing", "ready"];
+        const validStatuses = ["pending", "preparing", "ready", "served"];
 
         if (!status) {
             return res.status(400).json({ message: "Status is required" });
@@ -142,12 +161,15 @@ exports.updateOrderStatus = async (req, res) => {
             message: "Order status updated",
             order
         });
+
     } catch (error) {
+        console.error("❌ Update Status Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// ⭐ PROFILE API (NEW)
+
+// ================= PROFILE API =================
 exports.getProfileData = async (req, res) => {
     try {
         const { tableId } = req.query;
@@ -164,10 +186,10 @@ exports.getProfileData = async (req, res) => {
             0
         );
 
-        // ⭐ Points logic (10% of total spend)
+        // ⭐ Points logic
         const points = Math.floor(totalSpent * 0.1);
 
-        // 📦 Sort orders (latest first)
+        // 📦 Sort latest first
         const pastOrders = orders.sort(
             (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
@@ -183,6 +205,7 @@ exports.getProfileData = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("❌ Profile Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
