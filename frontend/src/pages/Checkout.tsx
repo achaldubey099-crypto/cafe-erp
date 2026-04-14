@@ -104,6 +104,61 @@ export default function Checkout() {
     }
   };
 
+  // ================= RAZORPAY PAYMENT =================
+  const handlePayment = async () => {
+    try {
+      const res = await API.post("/payment/create-order", { amount: total });
+
+      console.log("create-order response:", res);
+
+      // backend may return shape: { order: { id, amount } } or direct order
+      const order = res.data.order || res.data;
+      if (!order) {
+        throw new Error('Invalid order response');
+      }
+      const orderId = order.id || order.order_id || order._id;
+      const orderAmount = order.amount || order.amount_due || order.total || total;
+
+      const options = {
+        key: "rzp_test_SdShGK2Y6Cgv4Y",
+        amount: orderAmount,
+        currency: "INR",
+        name: "Cafe ERP",
+        description: "Order Payment",
+        order_id: orderId,
+
+        handler: async function (response: any) {
+          console.log("Payment Success", response);
+
+          try {
+            await fetch("/api/payment/verify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(response),
+            });
+          } catch (err) {
+            console.error("Payment verify failed:", err);
+          }
+
+          // after successful payment verification, place the order in our system
+          await placeOrder(paymentMethod);
+        },
+
+        theme: {
+          color: "#3399cc",
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      console.error("Razorpay init failed:", err);
+      alert("Payment could not be initiated. Please try again.");
+    }
+  };
+
   return (
     <div className="bg-background min-h-screen pb-80">
       {/* HEADER */}
@@ -238,7 +293,7 @@ export default function Checkout() {
           </div>
 
           <button
-            onClick={() => placeOrder(paymentMethod)}
+            onClick={() => handlePayment()}
             className="w-full h-[64px] bg-primary text-white rounded-2xl font-bold flex items-center justify-between px-7 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] transition-all"
           >
             <span className="text-lg">Place Order</span>

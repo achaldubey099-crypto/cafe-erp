@@ -32,6 +32,9 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 
+// Payment Routes (Razorpay)
+const paymentRoutes = require('./routes/paymentRoutes');
+
 // Auth & Admin
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -47,6 +50,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 
 // ================= API ROUTES =================
+app.use("/api/payment", paymentRoutes);
 
 // ✅ PUBLIC APIs
 app.use('/api/menu', menuRoutes);
