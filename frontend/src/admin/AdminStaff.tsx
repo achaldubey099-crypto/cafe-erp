@@ -50,10 +50,10 @@ export default function AdminStaff() {
     try {
       setError('');
       if (editing) {
-        const res = await API.put(`/staff/${editing._id}`, form);
+        const res = await API.put<StaffMember>(`/staff/${editing._id}`, form);
         setStaffList((prev) => prev.map((s) => (s._id === editing._id ? res.data : s)));
       } else {
-        const res = await API.post('/staff', form);
+        const res = await API.post<StaffMember>('/staff', form);
         setStaffList((prev) => [res.data, ...prev]);
       }
       setIsModalOpen(false);

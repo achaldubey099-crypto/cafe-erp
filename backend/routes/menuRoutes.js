@@ -6,6 +6,7 @@ const {
   getFeaturedItem,
   createMenuItem
 } = require('../controller/menuController');
+const upload = require('../middleware/upload');
 
 // ================= SPECIAL ROUTES =================
 
@@ -18,7 +19,7 @@ router.get('/featured', getFeaturedItem);
 router.get('/', getMenu);
 
 // Create new menu item (for admin / testing)
-router.post('/', createMenuItem);
+router.post('/', upload.single('imageFile'), createMenuItem);
 
 // ================= FUTURE READY =================
 

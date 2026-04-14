@@ -9,12 +9,13 @@ const {
     updateOrderStatus,
     getProfileData
 } = require('../controller/orderController');
+const { protect } = require('../middleware/auth');
 
 
 // ================= USER ROUTES =================
 
 // Create Order (Checkout)
-router.post('/', createOrder);
+router.post('/', protect, createOrder);
 
 // Get Orders by Table
 router.get('/table', getOrdersByTable);

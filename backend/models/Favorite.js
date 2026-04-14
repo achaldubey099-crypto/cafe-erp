@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const favoriteSchema = new mongoose.Schema({
     tableId: {
         type: Number,
-        required: true
+        default: null
     },
     itemId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -15,6 +15,18 @@ const favoriteSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         default: null
+    },
+    name: {
+        type: String,
+        default: ''
+    },
+    price: {
+        type: Number,
+        default: 0
+    },
+    image: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 

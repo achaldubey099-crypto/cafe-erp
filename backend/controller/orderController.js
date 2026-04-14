@@ -4,6 +4,10 @@ const Order = require('../models/Order');
 // ================= CREATE ORDER =================
 exports.createOrder = async (req, res) => {
     try {
+        if (req.user?.role !== "user") {
+            return res.status(403).json({ message: "Customer login is required to place orders" });
+        }
+
         const {
             tableId,
             sessionId,
@@ -49,7 +53,7 @@ exports.createOrder = async (req, res) => {
         const order = await Order.create({
             tableId,
             sessionId, // ✅ IMPORTANT (added)
-            userId: req.user?._id || req.body.userId || null,
+            userId: req.user?.id,
             items,
             paymentMethod,
             totalAmount,

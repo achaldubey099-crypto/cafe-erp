@@ -2,8 +2,9 @@
 # Node modules
 # =========================
 node_modules/
-bun.lock
 package-lock.json
+bun.lock
+!backend/bun.lock
 
 # =========================
 # Environment variables

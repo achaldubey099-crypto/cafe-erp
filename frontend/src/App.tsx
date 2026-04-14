@@ -10,6 +10,7 @@ import Checkout from "./pages/Checkout";
 import Tracking from "./pages/Tracking";
 import Profile from "./pages/Profile";
 import Cart from "./pages/Cart";
+import Login from "./pages/Login";
 
 import BottomNav from "./components/BottomNav";
 
@@ -45,8 +46,16 @@ export default function App() {
 
           {/* ================= CUSTOMER ================= */}
           <Route path="/" element={<Menu />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoute role="user">
+                <Checkout />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/orders" element={<Tracking />} />
           <Route path="/profile" element={<Profile />} />
 

@@ -6,25 +6,29 @@ export default function ProtectedRoute({
   role,
 }: {
   children: JSX.Element;
-  role?: "admin" | "customer";
+  role?: "admin" | "user";
 }) {
-  const { user } = useAuth();
+  const { user, customer } = useAuth();
 
-  const token = localStorage.getItem("token");
+  const token = role === "user"
+    ? localStorage.getItem("customerToken")
+    : localStorage.getItem("token");
 
   // 🔐 Not logged in
   if (!token) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to={role === "user" ? "/login" : "/admin/login"} replace />;
   }
 
   // 🛡️ Role-based protection
   // If we have a token but user isn't loaded yet, wait (avoid redirecting to `/` on refresh)
   if (role) {
-    if (!user) {
+    const activeUser = role === "user" ? customer : user;
+
+    if (!activeUser) {
       return null; // let auth context hydrate from localStorage
     }
 
-    if (user.role !== role) {
+    if (activeUser.role !== role) {
       return <Navigate to="/" replace />;
     }
   }

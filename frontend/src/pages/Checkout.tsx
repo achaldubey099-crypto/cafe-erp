@@ -12,15 +12,18 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import API from "../lib/api";
 import { getTableId } from "../lib/table";
 
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart } = useCart();
+  const { customer } = useAuth();
 
   const [people, setPeople] = useState(1);
   const [sessionId, setSessionId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
 
   // ✅ GET TABLE
   const tableId = getTableId();
@@ -63,12 +66,10 @@ export default function Checkout() {
         return;
       }
 
-      const user = JSON.parse(localStorage.getItem('user') || 'null');
-
       const orderData = {
         tableId,
         sessionId,
-        userId: user?._id || null,
+        userId: customer?._id,
         items: cart.map((item, index) => ({
           itemId: index + 1,
           name: item.name,
@@ -104,7 +105,7 @@ export default function Checkout() {
   };
 
   return (
-    <div className="bg-background min-h-screen pb-48">
+    <div className="bg-background min-h-screen pb-64">
       {/* HEADER */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md flex justify-between items-center px-6 py-4">
         <div className="flex items-center gap-4">
@@ -123,7 +124,7 @@ export default function Checkout() {
 
       {/* MAIN */}
       <main className="pt-24 px-6 space-y-8 max-w-md mx-auto">
-        
+
         {/* CART */}
         <section className="space-y-4">
           <div className="flex justify-between items-end">
@@ -209,24 +210,39 @@ export default function Checkout() {
       </main>
 
       {/* FOOTER */}
-      <footer className="fixed bottom-0 w-full bg-white p-4 shadow-md">
-        <div className="flex flex-col gap-3">
+      <footer className="fixed bottom-0 left-0 w-full bg-white px-6 py-5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] z-[9999]">
+        <div className="flex flex-col gap-5 max-w-md mx-auto relative pb-safe">
           
-          {/* PAY LATER */}
-          <button
-            onClick={() => placeOrder("UPI")}
-            className="h-14 border rounded-2xl font-bold"
-          >
-            Place Order (Pay Later / Cash)
-          </button>
+          <div>
+            <h3 className="font-bold text-sm text-secondary mb-3 px-1">Payment Method</h3>
+            <div className="flex gap-3">
+              {[
+                { id: "UPI", icon: QrCode, label: "UPI" },
+                { id: "Card", icon: CreditCard, label: "Card" },
+                { id: "Counter", icon: Wallet, label: "Counter" },
+              ].map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => setPaymentMethod(method.id)}
+                  className={`flex-1 py-3.5 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${
+                    paymentMethod === method.id
+                      ? "border-primary bg-primary/5 text-primary shadow-sm scale-100"
+                      : "border-surface-container-high text-secondary hover:bg-surface-container scale-[0.98]"
+                  }`}
+                >
+                  <method.icon size={22} className={paymentMethod === method.id ? 'stroke-[2.5px]' : ''} />
+                  <span className="text-xs font-bold tracking-wide">{method.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-          {/* PAY ONLINE */}
           <button
-            onClick={() => placeOrder("UPI")}
-            className="h-14 bg-primary text-white rounded-2xl font-bold flex justify-between px-6"
+            onClick={() => placeOrder(paymentMethod)}
+            className="w-full h-[64px] bg-primary text-white rounded-2xl font-bold flex items-center justify-between px-7 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] transition-all"
           >
-            <span>Pay Online</span>
-            <span>₹{total} →</span>
+            <span className="text-lg">Place Order</span>
+            <span className="flex items-center gap-2 text-lg">₹{total} <ArrowRight size={20} strokeWidth={2.5} /></span>
           </button>
 
         </div>

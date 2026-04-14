@@ -4,13 +4,30 @@ import { motion } from 'motion/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../lib/api';
 import { getTableId } from '../lib/table';
-import { Order } from '../types';
+import { Feedback, Order } from '../types';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+
+interface FeedbackResponse {
+  feedback: Feedback | null;
+}
+
+interface SubmitFeedbackResponse {
+  message: string;
+  feedback: Feedback;
+}
 
 export default function Tracking() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { customer } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewError, setReviewError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -43,6 +60,70 @@ export default function Tracking() {
 
     return () => clearInterval(interval);
   }, [location.search]);
+
+  useEffect(() => {
+    const loadFeedback = async () => {
+      if (!order?._id || !customer) {
+        setFeedback(null);
+        setRating(0);
+        setComment('');
+        return;
+      }
+
+      try {
+        setReviewError('');
+        setReviewMessage('');
+        const res = await API.get<FeedbackResponse>(`/feedback/order/${order._id}`);
+        const existingFeedback = res.data.feedback;
+
+        setFeedback(existingFeedback);
+        setRating(existingFeedback?.rating || 0);
+        setComment(existingFeedback?.comment || '');
+      } catch (err: any) {
+        console.error(err);
+        setReviewError(err?.response?.data?.message || 'Failed to load your review');
+      }
+    };
+
+    loadFeedback();
+  }, [customer, order?._id]);
+
+  const submitReview = async () => {
+    if (!order?._id) {
+      setReviewError('Place an order before leaving a review.');
+      return;
+    }
+
+    if (!customer) {
+      navigate('/login?returnTo=/orders');
+      return;
+    }
+
+    if (rating < 1 || rating > 5) {
+      setReviewError('Choose a star rating before submitting.');
+      return;
+    }
+
+    try {
+      setSavingReview(true);
+      setReviewError('');
+      setReviewMessage('');
+
+      const res = await API.post<SubmitFeedbackResponse>('/feedback', {
+        orderId: order._id,
+        rating,
+        comment,
+      });
+
+      setFeedback(res.data.feedback);
+      setReviewMessage(feedback ? 'Review updated. Thank you.' : 'Review submitted. Thank you.');
+    } catch (err: any) {
+      console.error(err);
+      setReviewError(err?.response?.data?.message || 'Failed to submit your review');
+    } finally {
+      setSavingReview(false);
+    }
+  };
 
   // Explicit stages per philosophy
   const isPending = order?.status === 'pending';
@@ -199,26 +280,82 @@ export default function Tracking() {
         {/* Feedback */}
         <section className="space-y-6 pt-4 text-center">
           <div className="space-y-1">
-            <h3 className="font-headline text-xl font-bold">How's your experience?</h3>
-            <p className="text-sm text-on-surface-variant px-12">Your feedback helps us brew the perfect cup every time.</p>
+            <h3 className="font-headline text-xl font-bold">
+              {feedback ? 'Your review' : "How's your experience?"}
+            </h3>
+            <p className="text-sm text-on-surface-variant px-12">
+              {order
+                ? 'Your feedback helps us brew the perfect cup every time.'
+                : 'Place an order first, then come back here to review it.'}
+            </p>
           </div>
           
           <div className="flex justify-center gap-3">
             {[1, 2, 3, 4, 5].map((star) => (
-              <button key={star} className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-surface-container transition-all active:scale-90">
-                <Star size={32} className={cn("text-primary", star === 5 ? "text-outline-variant" : "fill-primary")} />
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                disabled={!order}
+                className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-surface-container transition-all active:scale-90 disabled:opacity-40"
+                aria-label={`Rate ${star} star${star === 1 ? '' : 's'}`}
+              >
+                <Star
+                  size={32}
+                  className={cn(
+                    "text-primary transition-colors",
+                    star <= rating ? "fill-primary" : "fill-transparent"
+                  )}
+                />
               </button>
             ))}
           </div>
 
           <div className="space-y-4">
             <textarea 
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              disabled={!order}
               className="w-full bg-surface-container-highest border-none rounded-2xl p-4 text-sm font-body text-on-surface focus:ring-2 focus:ring-primary/40 min-h-[120px] transition-all outline-none resize-none"
               placeholder="Tell us about your coffee..."
             />
-            <button className="w-full bg-gradient-to-br from-primary to-primary-container text-on-primary font-headline font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform">
-              Submit Feedback
-            </button>
+
+            {reviewError && (
+              <p className="rounded-2xl bg-red-50 border border-red-100 p-3 text-sm text-red-600">
+                {reviewError}
+              </p>
+            )}
+
+            {reviewMessage && (
+              <p className="rounded-2xl bg-green-50 border border-green-100 p-3 text-sm text-green-700">
+                {reviewMessage}
+              </p>
+            )}
+
+            {!customer ? (
+              <button
+                type="button"
+                onClick={() => navigate('/login?returnTo=/orders')}
+                className="w-full bg-primary text-on-primary font-headline font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform"
+              >
+                Login to Review
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={submitReview}
+                disabled={!order || rating === 0 || savingReview}
+                className="w-full bg-gradient-to-br from-primary to-primary-container text-on-primary font-headline font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-60 disabled:active:scale-100"
+              >
+                {savingReview ? 'Saving Review...' : feedback ? 'Update Review' : 'Submit Review'}
+              </button>
+            )}
+
+            {feedback?.updatedAt && (
+              <p className="text-xs text-on-surface-variant">
+                Last saved {new Date(feedback.updatedAt).toLocaleString()}
+              </p>
+            )}
           </div>
         </section>
       </main>

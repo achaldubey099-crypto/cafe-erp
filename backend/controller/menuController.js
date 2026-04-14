@@ -1,4 +1,26 @@
 const Menu = require('../models/Menu');
+const cloudinary = require('../config/cloudinary');
+
+const uploadImageToCloudinary = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'cafe-erp/menu',
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(result);
+      }
+    );
+
+    stream.end(fileBuffer);
+  });
+};
 
 // ================= GET MENU (Search + Filter) =================
 exports.getMenu = async (req, res) => {
@@ -60,11 +82,22 @@ exports.createMenuItem = async (req, res) => {
       });
     }
 
+    let uploadedImage = null;
+
+    if (req.file) {
+      if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+        return res.status(500).json({ message: "Cloudinary is not configured" });
+      }
+
+      uploadedImage = await uploadImageToCloudinary(req.file.buffer);
+    }
+
     const item = await Menu.create({
       name,
-      price,
+      price: Number(price),
       category,
-      image: image || "",
+      image: uploadedImage?.secure_url || image || "",
+      imagePublicId: uploadedImage?.public_id || "",
       isFeatured: isFeatured || false
     });
 

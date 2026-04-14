@@ -1,6 +1,9 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 // 🔐 GENERATE TOKEN (helper)
@@ -14,6 +17,15 @@ const generateToken = (user) => {
     { expiresIn: "7d" }
   );
 };
+
+const serializeUser = (user) => ({
+  _id: user._id,
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  avatar: user.avatar || ""
+});
 
 
 // ================= REGISTER =================
@@ -40,7 +52,8 @@ const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: "user"
+      role: "user",
+      authProvider: "local"
     });
 
     res.status(201).json({
@@ -65,13 +78,17 @@ const loginUser = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     // Compare password
+    if (!user.password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -84,11 +101,7 @@ const loginUser = async (req, res) => {
     // Send response
     res.json({
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        role: user.role
-      }
+      user: serializeUser(user)
     });
 
   } catch (err) {
@@ -96,8 +109,68 @@ const loginUser = async (req, res) => {
   }
 };
 
+// ================= GOOGLE CUSTOMER LOGIN =================
+const googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ message: "Google OAuth is not configured" });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload?.sub || !payload?.email) {
+      return res.status(401).json({ message: "Invalid Google account" });
+    }
+
+    let user = await User.findOne({ email: payload.email });
+
+    if (user?.role === "admin") {
+      return res.status(403).json({ message: "Use admin login for this account" });
+    }
+
+    if (!user) {
+      user = await User.create({
+        name: payload.name || payload.email.split("@")[0],
+        email: payload.email,
+        googleId: payload.sub,
+        avatar: payload.picture || "",
+        role: "user",
+        authProvider: "google",
+      });
+    } else {
+      user.googleId = user.googleId || payload.sub;
+      user.name = user.name || payload.name || payload.email.split("@")[0];
+      user.avatar = payload.picture || user.avatar || "";
+      user.authProvider = "google";
+      await user.save();
+    }
+
+    const token = generateToken(user);
+
+    res.json({
+      token,
+      user: serializeUser(user),
+    });
+  } catch (err) {
+    console.error("Google login error:", err);
+    res.status(401).json({ message: "Google login failed" });
+  }
+};
+
 
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  googleLogin
 };

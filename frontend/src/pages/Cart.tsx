@@ -2,10 +2,12 @@ import React from "react";
 import { ShoppingCart, ArrowLeft, Plus, Minus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cart, addToCart, removeFromCart, clearCart } = useCart();
+  const { cart, addToCart, removeFromCart, deleteFromCart, clearCart } = useCart();
+  const { isCustomerLoggedIn } = useAuth();
 
   const totalPrice = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -108,7 +110,7 @@ export default function Cart() {
 
                 {/* Remove */}
                 <button
-                  onClick={() => removeFromCart(item._id)}
+                  onClick={() => deleteFromCart(item._id)}
                   className="text-red-500"
                 >
                   <Trash2 size={18} />
@@ -131,7 +133,7 @@ export default function Cart() {
             </div>
 
             <button
-              onClick={() => navigate("/checkout")}
+              onClick={() => navigate(isCustomerLoggedIn ? "/checkout" : "/login?returnTo=/checkout")}
               className="bg-primary text-on-primary px-6 py-3 rounded-2xl font-headline font-bold shadow-lg active:scale-95"
             >
               Checkout

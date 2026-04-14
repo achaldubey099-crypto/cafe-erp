@@ -45,3 +45,13 @@ export interface Order {
   orderNumber?: number;
   userId?: string;
 }
+
+export interface Feedback {
+  _id: string;
+  orderId: string;
+  userId: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+}

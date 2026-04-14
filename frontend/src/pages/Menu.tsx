@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Heart, Plus, Bell, User as UserIcon, ShoppingCart } from "lucide-react";
+import { Search, Heart, Plus, Minus, Bell, LogIn, LogOut, ShoppingCart } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,27 @@ import { useNavigate } from "react-router-dom";
 import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+
+interface FavoriteResponse {
+  _id: string;
+  itemId: string | { _id: string };
+}
+
+interface ToggleFavoriteResponse {
+  favorite?: FavoriteResponse;
+}
+
+const cropCloudinaryImage = (url = "", width: number, height: number) => {
+  if (!url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) {
+    return url;
+  }
+
+  return url.replace(
+    "/image/upload/",
+    `/image/upload/c_fill,g_auto,w_${width},h_${height},f_auto,q_auto/`
+  );
+};
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -17,10 +38,9 @@ export default function Menu() {
   const [error, setError] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const isLoggedIn = !!user;
-
-  const { addToCart, cart } = useCart();
+  const { addToCart, removeFromCart, cart } = useCart();
+  const { customer, logoutCustomer } = useAuth();
+  const isLoggedIn = !!customer;
 
   const categories = ["Coffee", "Snacks", "Desserts", "Teas", "Seasonal"];
 
@@ -47,7 +67,7 @@ export default function Menu() {
 
     const fetchFavorites = async () => {
       try {
-        const res = await API.get('/favorites', { params: { userId: user._id } });
+        const res = await API.get<FavoriteResponse[]>('/favorites', { params: { userId: customer?._id } });
         const favIds = (res.data || []).map((f: any) => (f.itemId?._id || f.itemId));
         setFavorites(favIds);
       } catch (err) {
@@ -56,11 +76,11 @@ export default function Menu() {
     };
 
     fetchFavorites();
-  }, [isLoggedIn]);
+  }, [customer?._id, isLoggedIn]);
 
   const handleToggleFavorite = async (product: Product) => {
     if (!isLoggedIn) {
-      alert('Please login to add favorites');
+      navigate("/login?returnTo=/");
       return;
     }
 
@@ -71,8 +91,8 @@ export default function Menu() {
     setFavorites((prev) => (currentlyFavorited ? prev.filter((id) => id !== itemId) : [...prev, itemId]));
 
     try {
-      const res = await API.post('/favorites', {
-        userId: user._id,
+      const res = await API.post<ToggleFavoriteResponse>('/favorites', {
+        userId: customer?._id,
         itemId,
         name: product.name,
         price: product.price,
@@ -94,13 +114,31 @@ export default function Menu() {
     }
   };
 
+  const handleAddToCart = (product: Product) => {
+    if (!isLoggedIn) {
+      navigate("/login?returnTo=/");
+      return;
+    }
+
+    addToCart(product);
+  };
+
+  const getCartQuantity = (productId: string) => {
+    return cart.find((item) => item._id === productId)?.quantity || 0;
+  };
+
+  const handleLogout = () => {
+    logoutCustomer();
+    setFavorites([]);
+    navigate("/");
+  };
+
   // 🔥 Filtering logic (✅ FIXED HERE)
   const featuredProduct = products.find((p) => p.isFeatured);
 
   const filteredProducts = products.filter(
     (p) =>
-      p.category.toLowerCase() === activeCategory.toLowerCase() &&
-      !p.isFeatured
+      p.category.toLowerCase() === activeCategory.toLowerCase()
   );
 
   // 🔥 Cart calculations
@@ -133,13 +171,27 @@ export default function Menu() {
               Morning Brews
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-95">
               <Bell size={20} className="text-primary" />
             </button>
-            <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-95">
-              <UserIcon size={20} className="text-primary" />
-            </button>
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-sm font-bold text-primary hover:bg-surface-container-high active:scale-95 transition-all"
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate("/login?returnTo=/")}
+                className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-on-primary shadow-md shadow-primary/20 active:scale-95 transition-all"
+              >
+                <LogIn size={16} />
+                Login
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -185,10 +237,10 @@ export default function Menu() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative h-48 rounded-3xl overflow-hidden group"
+              className="relative aspect-[5/2] rounded-lg overflow-hidden group"
             >
               <img
-                src={featuredProduct.image}
+                src={cropCloudinaryImage(featuredProduct.image, 1200, 480)}
                 alt={featuredProduct.name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 referrerPolicy="no-referrer"
@@ -229,11 +281,11 @@ export default function Menu() {
                 transition={{ delay: index * 0.05 }}
                 className="group"
               >
-                <div className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-surface-container-low mb-3">
+                <div className="relative aspect-square rounded-lg overflow-hidden bg-surface-container-low mb-3 p-4">
                   <img
-                    src={product.image}
+                    src={cropCloudinaryImage(product.image, 640, 640)}
                     alt={product.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="w-full h-full object-cover rounded-lg shadow-sm transition-transform duration-500 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
                   <button
@@ -258,12 +310,32 @@ export default function Menu() {
                       ₹{product.price}
                     </span>
 
-                    <button
-                      onClick={() => addToCart(product)}
-                      className="bg-primary text-on-primary p-2 rounded-xl active:scale-90 transition-transform shadow-md shadow-primary/20"
-                    >
-                      <Plus size={16} />
-                    </button>
+                    {getCartQuantity(product._id) > 0 ? (
+                      <div className="flex items-center gap-2 rounded-lg bg-primary text-on-primary px-2 py-1 shadow-md shadow-primary/20">
+                        <button
+                          onClick={() => removeFromCart(product._id)}
+                          className="w-7 h-7 rounded-md bg-white/15 flex items-center justify-center active:scale-90 transition-transform"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="min-w-5 text-center text-sm font-bold">
+                          {getCartQuantity(product._id)}
+                        </span>
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          className="w-7 h-7 rounded-md bg-white/15 flex items-center justify-center active:scale-90 transition-transform"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        className="bg-primary text-on-primary p-2 rounded-lg active:scale-90 transition-transform shadow-md shadow-primary/20"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

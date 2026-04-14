@@ -16,6 +16,10 @@ const menuSchema = new mongoose.Schema({
     image: {
         type: String
     },
+    imagePublicId: {
+        type: String,
+        default: ''
+    },
     isFeatured: {
         type: Boolean,
         default: false

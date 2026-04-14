@@ -1,15 +1,96 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package, AlertTriangle, Ban, Plus, Download, Filter, Edit2, X } from 'lucide-react';
-import { PRODUCTS } from '../constants';
 import { cn } from '../lib/utils';
+import API from '../lib/api';
+import { Product } from '../types';
+
+interface CreateMenuResponse {
+  item: Product;
+}
 
 export default function AdminInventory() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    name: '',
+    price: '',
+    category: 'Coffee',
+    isFeatured: false,
+  });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+
+  const loadMenu = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await API.get<Product[]>('/menu');
+      setProducts(res.data || []);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || 'Failed to load menu items');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMenu();
+  }, []);
+
+  const resetForm = () => {
+    setForm({ name: '', price: '', category: 'Coffee', isFeatured: false });
+    setImageFile(null);
+    setImagePreview('');
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setImageFile(file);
+    setImagePreview(file ? URL.createObjectURL(file) : '');
+  };
+
+  const handleCreateMenuItem = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    try {
+      setSaving(true);
+      setError('');
+
+      const body = new FormData();
+      body.append('name', form.name);
+      body.append('price', form.price);
+      body.append('category', form.category);
+      body.append('isFeatured', String(form.isFeatured));
+
+      if (imageFile) {
+        body.append('imageFile', imageFile);
+      }
+
+      const res = await API.post<CreateMenuResponse>('/menu', body);
+
+      setProducts((prev) => [res.data.item, ...prev]);
+      closeModal();
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || 'Failed to save menu item');
+    } finally {
+      setSaving(false);
+    }
+  };
   
   const stats = [
-    { label: "Total Items", value: "142", sub: "+12 this month", icon: Package, color: "primary" },
-    { label: "Low Stock", value: "18", sub: "Requires attention", icon: AlertTriangle, color: "red" },
-    { label: "Out of Stock", value: "4", sub: "Inactive items", icon: Ban, color: "secondary" },
+    { label: "Menu Items", value: String(products.length), sub: loading ? "Loading..." : "Live menu", icon: Package, color: "primary" },
+    { label: "Favorites Ready", value: String(products.filter((item) => item.image).length), sub: "With images", icon: AlertTriangle, color: "secondary" },
+    { label: "Featured", value: String(products.filter((item) => item.isFeatured).length), sub: "Highlighted items", icon: Ban, color: "secondary" },
   ];
 
   return (
@@ -27,6 +108,13 @@ export default function AdminInventory() {
           Add New Item
         </button>
       </div>
+
+      {/* Stats */}
+      {error && (
+        <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -93,7 +181,11 @@ export default function AdminInventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline/5">
-              {PRODUCTS.map((product) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 px-8 text-center text-secondary">Loading menu items...</td>
+                </tr>
+              ) : products.length > 0 ? products.map((product) => (
                 <tr key={product.id ?? product._id} className="group hover:bg-surface-container-low/30 transition-all">
                   <td className="py-4 px-8">
                     <div className="flex items-center gap-4">
@@ -109,7 +201,7 @@ export default function AdminInventory() {
                   <td className="py-4 px-6">
                     <span className="text-xs font-bold text-secondary px-3 py-1 bg-surface-container rounded-full">{product.category}</span>
                   </td>
-                  <td className="py-4 px-6 font-headline font-bold text-on-surface">24.5 kg</td>
+                  <td className="py-4 px-6 font-headline font-bold text-on-surface">₹{product.price}</td>
                   <td className="py-4 px-6">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-700">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
@@ -125,7 +217,11 @@ export default function AdminInventory() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={5} className="py-8 px-8 text-center text-secondary">No menu items found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -134,7 +230,7 @@ export default function AdminInventory() {
       {/* Add Item Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
           <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-8">
@@ -143,19 +239,22 @@ export default function AdminInventory() {
                   <p className="text-secondary text-sm font-medium">Enter the details for the new inventory item.</p>
                 </div>
                 <button 
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="p-2 hover:bg-surface-container rounded-full transition-colors"
                 >
                   <X size={24} className="text-secondary" />
                 </button>
               </div>
 
-              <form className="space-y-6">
+              <form onSubmit={handleCreateMenuItem} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Item Name</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Menu Item Name</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. Arabica Coffee Beans"
+                    placeholder="e.g. Iced Latte"
+                    value={form.name}
+                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                    required
                     className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                   />
                 </div>
@@ -163,45 +262,73 @@ export default function AdminInventory() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Category</label>
-                    <select className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none">
-                      <option>Coffee Beans</option>
-                      <option>Dairy & Alt</option>
-                      <option>Pastries</option>
-                      <option>Supplies</option>
+                    <select
+                      value={form.category}
+                      onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
+                      className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
+                    >
+                      <option>Coffee</option>
+                      <option>Snacks</option>
+                      <option>Desserts</option>
+                      <option>Teas</option>
+                      <option>Seasonal</option>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Initial Stock</label>
+                    <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Price</label>
                     <input 
-                      type="text" 
-                      placeholder="e.g. 50 kg"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 180"
+                      value={form.price}
+                      onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+                      required
                       className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Supplier</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Highland Roasters Co."
+                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Menu Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
                     className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                   />
+                  {imagePreview && (
+                    <img src={imagePreview} alt="Selected menu item" className="h-28 w-full object-cover rounded-2xl" />
+                  )}
+                </div>
+
+                <label className="flex items-center gap-3 text-sm font-bold text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={form.isFeatured}
+                    onChange={(event) => setForm((prev) => ({ ...prev, isFeatured: event.target.checked }))}
+                  />
+                  Mark as featured
+                </label>
+
+                <div className="rounded-2xl bg-surface-container-low p-4 text-xs text-secondary">
+                  Images are uploaded to Cloudinary and saved on the menu item as a URL.
                 </div>
 
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={closeModal}
                     className="flex-1 py-4 bg-surface-container text-secondary rounded-2xl font-headline font-bold hover:bg-surface-container-high transition-all"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="flex-[2] py-4 bg-primary text-on-primary rounded-2xl font-headline font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
+                    disabled={saving}
+                    className="flex-[2] py-4 bg-primary text-on-primary rounded-2xl font-headline font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-60"
                   >
-                    Save Item
+                    {saving ? 'Saving...' : 'Save Item'}
                   </button>
                 </div>
               </form>
