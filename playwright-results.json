@@ -1,0 +1,467 @@
+{
+  "config": {
+    "configFile": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/playwright.config.ts",
+    "rootDir": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 4,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "02-cart.spec.ts",
+      "file": "02-cart.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Cart Page",
+          "file": "02-cart.spec.ts",
+          "line": 23,
+          "column": 6,
+          "specs": [
+            {
+              "title": "empty cart shows \"Your cart is empty\" message",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 688,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:29:54.714Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-f4ce7b77b9aa812f6805",
+              "file": "02-cart.spec.ts",
+              "line": 24,
+              "column": 7
+            },
+            {
+              "title": "cart shows injected items correctly",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5925,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:35:51",
+                        "location": {
+                          "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                          "column": 51,
+                          "line": 35
+                        },
+                        "snippet": "  33 |   test('cart shows injected items correctly', async ({ page }) => {\n  34 |     await gotoCartWithItems(page);\n> 35 |     await expect(page.locator('text=Test Latte')).toBeVisible({ timeout: 5000 });\n     |                                                   ^\n  36 |     await expect(page.locator('text=Test Croissant')).toBeVisible({ timeout: 5000 });\n  37 |   });\n  38 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                            "column": 51,
+                            "line": 35
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n\n\n  33 |   test('cart shows injected items correctly', async ({ page }) => {\n  34 |     await gotoCartWithItems(page);\n> 35 |     await expect(page.locator('text=Test Latte')).toBeVisible({ timeout: 5000 });\n     |                                                   ^\n  36 |     await expect(page.locator('text=Test Croissant')).toBeVisible({ timeout: 5000 });\n  37 |   });\n  38 |\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:35:51"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:29:56.157Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-cart-shows-injected-items-correctly-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-cart-shows-injected-items-correctly-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                        "column": 51,
+                        "line": 35
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-056ade5920bf9d548536",
+              "file": "02-cart.spec.ts",
+              "line": 33,
+              "column": 7
+            },
+            {
+              "title": "clear button empties the cart",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5941,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:42:51",
+                        "location": {
+                          "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                          "column": 51,
+                          "line": 42
+                        },
+                        "snippet": "  40 |     await gotoCartWithItems(page);\n  41 |     \n> 42 |     await expect(page.locator('text=Test Latte')).toBeVisible({ timeout: 5000 });\n     |                                                   ^\n  43 |     \n  44 |     const clearButton = page.locator('button', { hasText: 'Clear' });\n  45 |     await clearButton.click();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                            "column": 51,
+                            "line": 42
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Test Latte')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Test Latte')\u001b[22m\n\n\n  40 |     await gotoCartWithItems(page);\n  41 |     \n> 42 |     await expect(page.locator('text=Test Latte')).toBeVisible({ timeout: 5000 });\n     |                                                   ^\n  43 |     \n  44 |     const clearButton = page.locator('button', { hasText: 'Clear' });\n  45 |     await clearButton.click();\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:42:51"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:30:02.344Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-clear-button-empties-the-cart-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-clear-button-empties-the-cart-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                        "column": 51,
+                        "line": 42
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-3c04304d43c714f545e2",
+              "file": "02-cart.spec.ts",
+              "line": 39,
+              "column": 7
+            },
+            {
+              "title": "checkout button exists when cart has items",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5934,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:54:31",
+                        "location": {
+                          "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                          "column": 31,
+                          "line": 54
+                        },
+                        "snippet": "  52 |     \n  53 |     const checkoutBtn = page.locator('button', { hasText: 'Checkout' });\n> 54 |     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });\n     |                               ^\n  55 |   });\n  56 |\n  57 |   test('checkout button redirects guest to login', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                            "column": 31,
+                            "line": 54
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n\n\n  52 |     \n  53 |     const checkoutBtn = page.locator('button', { hasText: 'Checkout' });\n> 54 |     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });\n     |                               ^\n  55 |   });\n  56 |\n  57 |   test('checkout button redirects guest to login', async ({ page }) => {\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:54:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:30:08.593Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-checkout-button-exists-when-cart-has-items-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-checkout-button-exists-when-cart-has-items-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                        "column": 31,
+                        "line": 54
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-7dd83470f39cf5648f44",
+              "file": "02-cart.spec.ts",
+              "line": 50,
+              "column": 7
+            },
+            {
+              "title": "checkout button redirects guest to login",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5953,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:61:31",
+                        "location": {
+                          "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                          "column": 31,
+                          "line": 61
+                        },
+                        "snippet": "  59 |     \n  60 |     const checkoutBtn = page.locator('button', { hasText: 'Checkout' });\n> 61 |     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });\n     |                               ^\n  62 |     await checkoutBtn.click();\n  63 |     \n  64 |     await page.waitForURL('**/login**', { timeout: 5000 });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                            "column": 31,
+                            "line": 61
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Checkout' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Checkout' })\u001b[22m\n\n\n  59 |     \n  60 |     const checkoutBtn = page.locator('button', { hasText: 'Checkout' });\n> 61 |     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });\n     |                               ^\n  62 |     await checkoutBtn.click();\n  63 |     \n  64 |     await page.waitForURL('**/login**', { timeout: 5000 });\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:61:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:30:14.848Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-checkout-button-redirects-guest-to-login-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-checkout-button-redirects-guest-to-login-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                        "column": 31,
+                        "line": 61
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-bb026fc757bc82ffd100",
+              "file": "02-cart.spec.ts",
+              "line": 57,
+              "column": 7
+            },
+            {
+              "title": "total price displays correctly for injected items",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5970,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=₹650')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=₹650')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=₹650')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=₹650')\u001b[22m\n\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:72:45",
+                        "location": {
+                          "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                          "column": 45,
+                          "line": 72
+                        },
+                        "snippet": "  70 |     \n  71 |     // 2 * 250 + 1 * 150 = 650\n> 72 |     await expect(page.locator('text=₹650')).toBeVisible({ timeout: 5000 });\n     |                                             ^\n  73 |   });\n  74 | });\n  75 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                            "column": 45,
+                            "line": 72
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=₹650')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=₹650')\u001b[22m\n\n\n  70 |     \n  71 |     // 2 * 250 + 1 * 150 = 650\n> 72 |     await expect(page.locator('text=₹650')).toBeVisible({ timeout: 5000 });\n     |                                             ^\n  73 |   });\n  74 | });\n  75 |\n    at /Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts:72:45"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-14T12:30:21.112Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-total-pr-52342-orrectly-for-injected-items-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/test-results/02-cart-Cart-Page-total-pr-52342-orrectly-for-injected-items-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/chinmaysabharwal/Desktop/FL/cafe-erp/tests/02-cart.spec.ts",
+                        "column": 45,
+                        "line": 72
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5b514facbd090da35f4d-a9f80a149b238948b469",
+              "file": "02-cart.spec.ts",
+              "line": 68,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-14T12:29:54.189Z",
+    "duration": 32982.58,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 5,
+    "flaky": 0
+  }
+}

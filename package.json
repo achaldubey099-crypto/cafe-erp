@@ -1,0 +1,26 @@
+{
+  "name": "cafe-erp",
+  "version": "1.0.0",
+  "description": "MongoDB-Achal ke OAuth- Chinmay ke cloudinary- mediotechnologies pe",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/achaldubey099-crypto/cafe-erp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/achaldubey099-crypto/cafe-erp/issues"
+  },
+  "homepage": "https://github.com/achaldubey099-crypto/cafe-erp#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
