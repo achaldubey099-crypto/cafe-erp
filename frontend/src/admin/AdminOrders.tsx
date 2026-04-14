@@ -54,7 +54,7 @@ const formatTimeAgo = (dateStr: string) => {
 
 export default function AdminOrders() {
   // Start on the first stage (pending)
-  const [filter, setFilter] = useState<"all" | OrderStatus>("pending");
+  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export default function AdminOrders() {
   const statusStyles: Record<OrderStatus, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
     preparing: "bg-blue-100 text-blue-700 border-blue-200",
-    ready: "bg-blue-100 text-blue-700 border-blue-200",
+    ready: "bg-green-100 text-green-700 border-green-300",
     completed: "bg-[#808000]/15 text-[#556b2f] border-[#808000]/30",
     cancelled: "bg-red-100 text-red-700 border-red-200",
   };

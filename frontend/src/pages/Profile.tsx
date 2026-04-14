@@ -33,21 +33,39 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem('user') || 'null'));
+  const isLoggedIn = !!user;
+
   useEffect(() => {
     const loadProfile = async () => {
-      const tableId = getTableId();
-
       try {
         setLoading(true);
         setError('');
 
-        const [profileRes, favoritesRes] = await Promise.all([
-          API.get<ProfileResponse>('/orders/profile', { params: { tableId } }),
-          API.get<FavoriteResponse[]>('/favorites', { params: { tableId } }),
-        ]);
+        if (isLoggedIn) {
+          // Logged-in: fetch favorites and past orders by userId
+          const [ordersRes, favoritesRes] = await Promise.all([
+            API.get<Order[]>('/orders', { params: { userId: user._id } }),
+            API.get<FavoriteResponse[]>('/favorites', { params: { userId: user._id } }),
+          ]);
 
-        setProfile(profileRes.data);
-        setFavorites(favoritesRes.data || []);
+          const pastOrders = ordersRes.data || [];
+          const totalSpent = pastOrders.reduce((s, o) => s + (o.grandTotal || 0), 0);
+          const points = Math.floor(totalSpent * 0.1);
+
+          setProfile({
+            user: { name: user.name || 'User', tableId: getTableId() },
+            points,
+            totalSpent,
+            pastOrders,
+          });
+
+          setFavorites(favoritesRes.data || []);
+        } else {
+          // Guest: do not fetch user-specific data
+          setProfile(null);
+          setFavorites([]);
+        }
       } catch (err) {
         console.error(err);
         setError('Failed to load profile data');
@@ -57,9 +75,17 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, []);
+  }, [user]);
 
-  const userName = profile?.user?.name || 'Guest User';
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    // keep sessionId if desired; do not remove tableId
+    setUser(null);
+    navigate('/');
+  };
+
+  const userName = isLoggedIn ? (user.name || 'User') : (profile?.user?.name || 'Guest User');
   const tableId = profile?.user?.tableId ?? getTableId();
   const points = profile?.points ?? 0;
   const totalSpent = profile?.totalSpent ?? 0;
@@ -99,9 +125,11 @@ export default function Profile() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <button className="absolute bottom-0 right-0 bg-primary text-on-primary p-2 rounded-full shadow-lg active:scale-90 transition-transform">
-              <Edit2 size={14} />
-            </button>
+            {isLoggedIn && (
+              <button className="absolute bottom-0 right-0 bg-primary text-on-primary p-2 rounded-full shadow-lg active:scale-90 transition-transform">
+                <Edit2 size={14} />
+              </button>
+            )}
           </div>
           <div className="mt-4">
             <h2 className="font-headline font-extrabold text-2xl text-on-surface tracking-tight">
@@ -109,9 +137,15 @@ export default function Profile() {
             </h2>
             <p className="font-body text-on-surface-variant text-sm mt-1">Table #{tableId}</p>
           </div>
-          <button className="mt-4 px-6 py-2 rounded-xl bg-surface-container-high text-primary font-semibold text-sm hover:bg-surface-container-highest transition-colors active:scale-95">
-            Edit Profile
-          </button>
+          {isLoggedIn ? (
+            <button className="mt-4 px-6 py-2 rounded-xl bg-surface-container-high text-primary font-semibold text-sm hover:bg-surface-container-highest transition-colors active:scale-95">
+              Edit Profile
+            </button>
+          ) : (
+            <div className="mt-4 px-6 py-2 rounded-xl bg-surface-container-high text-secondary font-medium text-sm">
+              Login to access favorites, past orders and profile settings
+            </div>
+          )}
         </section>
 
         {/* Loyalty Card */}
@@ -144,6 +178,7 @@ export default function Profile() {
         </section>
 
         {/* Favorites */}
+        {isLoggedIn && (
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-headline font-bold text-lg text-on-surface">Favorites</h3>
@@ -171,8 +206,10 @@ export default function Profile() {
             )}
           </div>
         </section>
+        )}
 
         {/* Past Orders */}
+        {isLoggedIn && (
         <section className="space-y-4">
           <h3 className="font-headline font-bold text-lg text-on-surface">Past Orders</h3>
           <div className="space-y-3">
@@ -206,6 +243,7 @@ export default function Profile() {
             )}
           </div>
         </section>
+        )}
 
         {/* Settings */}
         <section className="space-y-2">
@@ -234,7 +272,7 @@ export default function Profile() {
         </section>
 
         {/* Logout */}
-        <button className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-red-500/20 text-red-500 font-bold tracking-tight hover:bg-red-500/5 active:scale-[0.98] transition-all">
+        <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-red-500/20 text-red-500 font-bold tracking-tight hover:bg-red-500/5 active:scale-[0.98] transition-all">
           <LogOut size={20} />
           Logout
         </button>

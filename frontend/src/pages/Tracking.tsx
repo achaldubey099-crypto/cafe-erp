@@ -28,6 +28,7 @@ export default function Tracking() {
           setOrder(null);
           return;
         }
+        console.error(err);
         setError('Failed to load your latest order');
       } finally {
         setLoading(false);
@@ -35,6 +36,12 @@ export default function Tracking() {
     };
 
     fetchLatestOrder();
+
+    const interval = setInterval(() => {
+      fetchLatestOrder();
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, [location.search]);
 
   // Explicit stages per philosophy

@@ -15,6 +15,10 @@ export default function Menu() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const isLoggedIn = !!user;
 
   const { addToCart, cart } = useCart();
 
@@ -36,6 +40,59 @@ export default function Menu() {
 
     fetchProducts();
   }, []);
+
+  // Fetch user favorites if logged in
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const fetchFavorites = async () => {
+      try {
+        const res = await API.get('/favorites', { params: { userId: user._id } });
+        const favIds = (res.data || []).map((f: any) => (f.itemId?._id || f.itemId));
+        setFavorites(favIds);
+      } catch (err) {
+        console.error('Failed to load favorites', err);
+      }
+    };
+
+    fetchFavorites();
+  }, [isLoggedIn]);
+
+  const handleToggleFavorite = async (product: Product) => {
+    if (!isLoggedIn) {
+      alert('Please login to add favorites');
+      return;
+    }
+
+    const itemId = product._id;
+    const currentlyFavorited = favorites.includes(itemId);
+
+    // Optimistic UI
+    setFavorites((prev) => (currentlyFavorited ? prev.filter((id) => id !== itemId) : [...prev, itemId]));
+
+    try {
+      const res = await API.post('/favorites', {
+        userId: user._id,
+        itemId,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+      });
+
+      // If backend indicates removal (no favorite in response), ensure removed
+      if (!res.data.favorite) {
+        setFavorites((prev) => prev.filter((id) => id !== itemId));
+      } else {
+        // ensure it's present
+        setFavorites((prev) => Array.from(new Set([...prev, itemId])));
+      }
+    } catch (err) {
+      console.error('Favorite toggle failed', err);
+      // revert optimistic
+      setFavorites((prev) => (currentlyFavorited ? [...prev, itemId] : prev.filter((id) => id !== itemId)));
+      alert(err?.response?.data?.message || 'Failed to update favorite');
+    }
+  };
 
   // 🔥 Filtering logic (✅ FIXED HERE)
   const featuredProduct = products.find((p) => p.isFeatured);
@@ -179,8 +236,15 @@ export default function Menu() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     referrerPolicy="no-referrer"
                   />
-                  <button className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-primary shadow-sm active:scale-90 transition-transform">
-                    <Heart size={16} />
+                  <button
+                    onClick={() => handleToggleFavorite(product)}
+                    className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-primary shadow-sm active:scale-90 transition-transform"
+                  >
+                    {favorites.includes(product._id) ? (
+                      <Heart size={16} fill="currentColor" className="text-red-500" />
+                    ) : (
+                      <Heart size={16} />
+                    )}
                   </button>
                 </div>
 

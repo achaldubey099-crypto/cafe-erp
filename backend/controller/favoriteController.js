@@ -3,20 +3,21 @@ const Favorite = require('../models/Favorite');
 // Add / Remove Favorite (Toggle)
 exports.toggleFavorite = async (req, res) => {
     try {
-        const { tableId, itemId } = req.body;
+        const { userId, tableId, itemId } = req.body;
 
-        if (!tableId || !itemId) {
-            return res.status(400).json({ message: "tableId and itemId required" });
+        if (!userId || !itemId) {
+            return res.status(401).json({ message: "Authentication required to use favorites" });
         }
 
-        const existing = await Favorite.findOne({ tableId, itemId });
+        // ensure favorites are per-user
+        const existing = await Favorite.findOne({ userId, itemId });
 
         if (existing) {
             await Favorite.deleteOne({ _id: existing._id });
             return res.json({ message: "Removed from favorites" });
         }
 
-        const favorite = await Favorite.create({ tableId, itemId });
+        const favorite = await Favorite.create({ userId, tableId: tableId || null, itemId });
 
         res.json({
             message: "Added to favorites",
@@ -31,9 +32,18 @@ exports.toggleFavorite = async (req, res) => {
 // Get Favorites
 exports.getFavorites = async (req, res) => {
     try {
-        const { tableId } = req.query;
+        const { userId, tableId } = req.query;
 
-        const favorites = await Favorite.find({ tableId })
+        let filter = {};
+        if (userId) {
+            filter.userId = userId;
+        } else if (tableId) {
+            filter.tableId = tableId;
+        } else {
+            return res.json([]);
+        }
+
+        const favorites = await Favorite.find(filter)
             .populate('itemId'); // fetch menu details
 
         res.json(favorites);

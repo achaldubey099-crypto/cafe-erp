@@ -49,6 +49,7 @@ exports.createOrder = async (req, res) => {
         const order = await Order.create({
             tableId,
             sessionId, // ✅ IMPORTANT (added)
+            userId: req.user?._id || req.body.userId || null,
             items,
             paymentMethod,
             totalAmount,
@@ -76,7 +77,12 @@ exports.createOrder = async (req, res) => {
 // ================= GET ALL ORDERS (ADMIN) =================
 exports.getOrders = async (req, res) => {
     try {
-        const orders = await Order.find()
+        const { userId } = req.query;
+
+        const filter = {};
+        if (userId) filter.userId = userId;
+
+        const orders = await Order.find(filter)
             .sort({ createdAt: -1 }); // ✅ latest first
 
         res.json(orders);
@@ -137,7 +143,7 @@ exports.updateOrderStatus = async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        const validStatuses = ["pending", "preparing", "ready", "served"];
+        const validStatuses = ["pending", "preparing", "ready", "completed", "cancelled"];
 
         if (!status) {
             return res.status(400).json({ message: "Status is required" });

@@ -63,9 +63,12 @@ export default function Checkout() {
         return;
       }
 
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+
       const orderData = {
         tableId,
         sessionId,
+        userId: user?._id || null,
         items: cart.map((item, index) => ({
           itemId: index + 1,
           name: item.name,
