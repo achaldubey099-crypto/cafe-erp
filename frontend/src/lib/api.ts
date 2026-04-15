@@ -2,20 +2,9 @@
 import axios from "axios";
 
 const envApi = import.meta.env.VITE_API_URL as string | undefined;
-let baseURL: string;
-
-if (envApi && envApi.length) {
-  baseURL = envApi.replace(/\/$/, "") + "/api";
-} else if (typeof window !== "undefined") {
-  const hostname = window.location.hostname || "localhost";
-  const protocol = window.location.protocol && window.location.protocol.startsWith("https") ? "https" : "http";
-  baseURL = `${protocol}://${hostname}:5001/api`;
-} else {
-  baseURL = "http://localhost:5001/api";
-}
 
 const API = axios.create({
-  baseURL,
+  baseURL: envApi && envApi.length ? envApi.replace(/\/$/, "") + "/api" : "/api",
   withCredentials: true, // 🔥 important for CORS & cookies (future-ready)
 });
 

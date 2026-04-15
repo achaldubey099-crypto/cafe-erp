@@ -31,6 +31,13 @@ const protect = (req, res, next) => {
   next();
 };
 
+// 🔓 OPTIONAL PROTECT (attach user if token exists, but do not require it)
+const optionalProtect = (req, res, next) => {
+  const decoded = verifyToken(req);
+  req.user = decoded || null;
+  next();
+};
+
 
 // 👑 ADMIN PROTECT (only admin allowed)
 const protectAdmin = (req, res, next) => {
@@ -49,4 +56,4 @@ const protectAdmin = (req, res, next) => {
 };
 
 
-module.exports = { protect, protectAdmin };
+module.exports = { protect, optionalProtect, protectAdmin };

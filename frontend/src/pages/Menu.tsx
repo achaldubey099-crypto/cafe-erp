@@ -8,6 +8,7 @@ import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
+import { getTableId } from "../lib/table";
 
 interface FavoriteResponse {
   _id: string;
@@ -43,6 +44,7 @@ export default function Menu() {
   const { customer, logoutCustomer } = useAuth();
   const isLoggedIn = !!customer;
   const [categories, setCategories] = useState([]);
+  const tableId = getTableId();
 
   // 🔥 Fetch products from backend
   useEffect(() => {
@@ -145,11 +147,6 @@ export default function Menu() {
   };
 
   const handleAddToCart = (product: Product) => {
-    if (!isLoggedIn) {
-      navigate("/login?returnTo=/");
-      return;
-    }
-
     addToCart(product);
   };
 
@@ -235,6 +232,15 @@ const filteredProducts = products.filter((p) => {
       </header>
 
       <main className="pt-24">
+        {tableId && (
+          <section className="px-6 mb-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              Table #{tableId} connected
+            </div>
+          </section>
+        )}
+
         {/* Search */}
         <section className="px-6 mb-8">
           <div className="relative group">

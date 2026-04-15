@@ -91,7 +91,7 @@ const orderSchema = new mongoose.Schema(
     // 💳 PAYMENT
     paymentMethod: {
       type: String,
-      enum: ['UPI', 'CARD', 'WALLET'],
+      enum: ['UPI', 'Card', 'Counter'],
       default: 'UPI',
     },
 

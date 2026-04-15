@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 
 import Menu from "./pages/Menu";
@@ -27,6 +28,17 @@ import Settings from "./admin/AdminSettings";
 import Orders from "./admin/AdminOrders.tsx";
 import AdminLogin from "./admin/pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
+import { syncTableIdFromSearch } from "./lib/table";
+
+function TableSessionBinder() {
+  const location = useLocation();
+
+  useEffect(() => {
+    syncTableIdFromSearch(location.search);
+  }, [location.search]);
+
+  return null;
+}
 
 function CustomerBottomNav() {
   const { pathname } = useLocation();
@@ -42,20 +54,14 @@ export default function App() {
   return (
     <Router>
       <div className="min-h-screen bg-background">
+        <TableSessionBinder />
         <Routes>
 
           {/* ================= CUSTOMER ================= */}
           <Route path="/" element={<Menu />} />
           <Route path="/login" element={<Login />} />
           <Route path="/cart" element={<Cart />} />
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute role="user">
-                <Checkout />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<Tracking />} />
           <Route path="/profile" element={<Profile />} />
 

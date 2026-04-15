@@ -19,6 +19,8 @@ interface AnalyticsResponse {
   totalRevenue: number;
   netProfit: number;
   weeklySales: Record<string, number>;
+  salesSeries7d?: Array<{ label: string; value: number }>;
+  salesSeries30d?: Array<{ label: string; value: number }>;
   bestSellingProduct: { name: string; count: number };
   retentionRate: string | number;
   topSellingItems: Array<{ name: string; quantity: number }>;
@@ -26,8 +28,6 @@ interface AnalyticsResponse {
   paymentBreakdown?: { upi?: number; card?: number; counter?: number };
   hourlyOrders?: Record<string, number>;
 }
-
-const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
@@ -61,36 +61,26 @@ export default function AdminAnalytics() {
   ];
 
   const chartData = useMemo(() => {
-    const base = DAY_ORDER.map((name) => ({ name, value: 0 }));
-    if (!analytics) return base;
+    if (!analytics) return [];
 
-    // If orders array present, group by day and sum revenue for last 7 days
-    const orders = (analytics as any).orders;
-    if (Array.isArray(orders) && orders.length > 0) {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-
-      orders.forEach((o: any) => {
-        const raw = o.createdAt || o.date || o.timestamp || o.time;
-        const d = raw ? new Date(raw) : null;
-        if (!d || isNaN(d.getTime())) return;
-        if (d < sevenDaysAgo) return;
-        const idx = (d.getDay() + 6) % 7; // map Sun(0)->6, Mon(1)->0, ...
-        const amount = Number(o.total ?? o.amount ?? o.revenue ?? 0) || 0;
-        base[idx].value += amount;
-      });
-
-      return base;
+    if (range === '30d' && analytics.salesSeries30d?.length) {
+      return analytics.salesSeries30d.map((point) => ({
+        name: point.label,
+        value: Number(point.value) || 0,
+      }));
     }
 
-    // Fallback to weeklySales record if provided
-    if (analytics.weeklySales && Object.keys(analytics.weeklySales).length > 0) {
-      return DAY_ORDER.map((day) => ({ name: day, value: Number(analytics.weeklySales[day] ?? 0) || 0 }));
+    if (analytics.salesSeries7d?.length) {
+      return analytics.salesSeries7d.map((point) => ({
+        name: point.label,
+        value: Number(point.value) || 0,
+      }));
     }
 
-    // final fallback sample
-    const sample = [10, 20, 15, 8, 12, 5, 6];
-    return DAY_ORDER.map((name, i) => ({ name, value: sample[i] ?? 0 }));
+    return Object.entries(analytics.weeklySales || {}).map(([name, value]) => ({
+      name,
+      value: Number(value) || 0,
+    }));
   }, [analytics, range]);
 
   const maxBar = Math.max(...chartData.map((d) => Number(d.value) || 0), 1);
@@ -172,8 +162,12 @@ export default function AdminAnalytics() {
         <div className="col-span-12 lg:col-span-8 bg-white rounded-3xl p-8 shadow-sm border border-outline/5">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h3 className="text-xl font-bold text-primary font-headline">Weekly Sales Trend</h3>
-              <p className="text-sm text-secondary">Revenue performance over the last 7 days</p>
+              <h3 className="text-xl font-bold text-primary font-headline">
+                {range === '30d' ? '30 Day Sales Trend' : 'Weekly Sales Trend'}
+              </h3>
+              <p className="text-sm text-secondary">
+                {range === '30d' ? 'Revenue performance over the last 30 days' : 'Revenue performance over the last 7 days'}
+              </p>
             </div>
             <button className="p-2 hover:bg-surface-container rounded-full transition-colors">
               <MoreVertical size={20} className="text-secondary" />
@@ -182,9 +176,13 @@ export default function AdminAnalytics() {
           <div className="h-64 flex items-end justify-between gap-4 px-2">
             {chartData.map((d, i) => {
               const value = Number(d.value) || 0;
-              const height = Math.max(12, (value / maxBar) * 100);
+              const height = value > 0 ? Math.max(10, (value / maxBar) * 100) : 4;
               return (
-                <div key={d.name} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
+                <div
+                  key={d.name}
+                  className="flex h-full flex-1 flex-col items-center justify-end gap-2 group cursor-pointer"
+                  title={`${d.name}: ₹${value.toFixed(2)}`}
+                >
                   <div
                     className={cn(
                       "w-full rounded-t-xl transition-all duration-500",
@@ -192,7 +190,9 @@ export default function AdminAnalytics() {
                     )}
                     style={{ height: `${height}%` }}
                   />
-                  <span className="text-[10px] font-bold text-secondary uppercase">{d.name}</span>
+                  <span className="text-[10px] font-bold text-secondary uppercase">
+                    {range === '30d' && chartData.length > 10 && i % 5 !== 0 ? '' : d.name}
+                  </span>
                 </div>
               );
             })}

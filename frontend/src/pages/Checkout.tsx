@@ -8,6 +8,8 @@ import {
   CreditCard,
   Wallet,
   ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -25,6 +27,14 @@ type RazorpayOrderResponse = {
   total?: number;
 };
 
+type CheckoutNotice = {
+  kind: "success" | "error";
+  title: string;
+  message: string;
+  actionLabel: string;
+  onClose?: () => void;
+};
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart } = useCart();
@@ -33,15 +43,21 @@ export default function Checkout() {
   const [people, setPeople] = useState(1);
   const [sessionId, setSessionId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("UPI");
+  const [notice, setNotice] = useState<CheckoutNotice | null>(null);
 
   // ✅ GET TABLE
   const tableId = getTableId();
 
   // ✅ CREATE SESSION (ONLY ONCE)
   useEffect(() => {
+    if (!tableId) {
+      setSessionId("");
+      return;
+    }
+
     let existingSession = localStorage.getItem("sessionId");
 
-    if (!existingSession && tableId) {
+    if (!existingSession) {
       existingSession = Date.now() + "_" + tableId;
       localStorage.setItem("sessionId", existingSession);
     }
@@ -61,17 +77,38 @@ export default function Checkout() {
   const total = subtotal + platformFee + tax;
   const perPerson = total / people;
 
+  const showNotice = (nextNotice: CheckoutNotice) => {
+    setNotice(nextNotice);
+  };
+
+  const closeNotice = () => {
+    const handler = notice?.onClose;
+    setNotice(null);
+    handler?.();
+  };
+
   // ================= PLACE ORDER =================
   const placeOrder = async (paymentMethod: string) => {
     try {
       // ❌ VALIDATION
       if (!tableId) {
-        alert("Table not found. Please scan QR again.");
+        showNotice({
+          kind: "error",
+          title: "Table Not Found",
+          message: "Please scan your table QR code before placing an order.",
+          actionLabel: "Got It",
+        });
         return;
       }
 
       if (!cart || cart.length === 0) {
-        alert("Cart is empty");
+        showNotice({
+          kind: "error",
+          title: "Cart Is Empty",
+          message: "Add something from the menu before placing your order.",
+          actionLabel: "Back to Menu",
+          onClose: () => navigate("/"),
+        });
         return;
       }
 
@@ -98,18 +135,23 @@ export default function Checkout() {
 
       console.log("✅ Order Success:", res.data);
 
-      alert("Order placed successfully!");
-
       clearCart();
-
-      navigate(`/orders?tableId=${tableId}`);
+      showNotice({
+        kind: "success",
+        title: "Order Confirmed",
+        message: `Your order for Table #${tableId} has been sent to the kitchen.`,
+        actionLabel: "Track Order",
+        onClose: () => navigate(`/orders?tableId=${tableId}`),
+      });
 
     } catch (err: any) {
       console.error("❌ Order Failed:", err.response?.data || err.message);
-
-      alert(
-        err.response?.data?.message || "Failed to place order. Try again."
-      );
+      showNotice({
+        kind: "error",
+        title: "Order Failed",
+        message: err.response?.data?.message || "Failed to place order. Please try again.",
+        actionLabel: "Try Again",
+      });
     }
   };
 
@@ -162,7 +204,12 @@ export default function Checkout() {
       rzp.open();
     } catch (err: any) {
       console.error("Razorpay init failed:", err);
-      alert("Payment could not be initiated. Please try again.");
+      showNotice({
+        kind: "error",
+        title: "Payment Failed",
+        message: "Payment could not be initiated. Please try again.",
+        actionLabel: "Close",
+      });
     }
   };
 
@@ -319,6 +366,40 @@ export default function Checkout() {
 
         </div>
       </footer>
+
+      {notice && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/35 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full ${
+                  notice.kind === "success"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-600"
+                }`}
+              >
+                {notice.kind === "success" ? (
+                  <CheckCircle2 size={28} />
+                ) : (
+                  <AlertTriangle size={28} />
+                )}
+              </div>
+              <h3 className="text-2xl font-extrabold text-primary">{notice.title}</h3>
+              <p className="mt-2 text-sm text-secondary">{notice.message}</p>
+              <button
+                onClick={closeNotice}
+                className={`mt-6 w-full rounded-2xl px-5 py-4 text-sm font-bold transition-transform active:scale-[0.98] ${
+                  notice.kind === "success"
+                    ? "bg-primary text-white shadow-lg shadow-primary/25"
+                    : "bg-surface-container text-primary"
+                }`}
+              >
+                {notice.actionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

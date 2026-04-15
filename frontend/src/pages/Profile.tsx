@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 interface ProfileResponse {
   user: {
     name: string;
-    tableId: number;
+    tableId: number | null;
   };
   points: number;
   totalSpent: number;
@@ -54,9 +54,10 @@ export default function Profile() {
           const pastOrders = ordersRes.data || [];
           const totalSpent = pastOrders.reduce((s, o) => s + (o.grandTotal || 0), 0);
           const points = Math.floor(totalSpent * 0.1);
+          const currentTableId = getTableId();
 
           setProfile({
-            user: { name: customer.name || 'User', tableId: getTableId() },
+            user: { name: customer.name || 'User', tableId: currentTableId },
             points,
             totalSpent,
             pastOrders,
@@ -150,7 +151,9 @@ export default function Profile() {
             <h2 className="font-headline font-extrabold text-2xl text-on-surface tracking-tight">
               {loading ? 'Loading...' : userName}
             </h2>
-            <p className="font-body text-on-surface-variant text-sm mt-1">Table #{tableId}</p>
+            <p className="font-body text-on-surface-variant text-sm mt-1">
+              {tableId ? `Table #${tableId}` : 'Scan your table QR to bind this device'}
+            </p>
           </div>
           {isLoggedIn ? (
             <button

@@ -1,133 +1,182 @@
-const Order = require("../models/Order"); // ✅ FIXED (matches Order.js)
+const Order = require("../models/Order");
+
+const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const PROFIT_MARGIN = 0.4;
+
+const getOrderValue = (order) => Number(order?.grandTotal ?? order?.totalAmount ?? 0) || 0;
+
+const startOfDay = (date) => {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
+const formatShortDay = (date) =>
+  date.toLocaleDateString("en-US", { weekday: "short" });
+
+const formatDayMonth = (date) =>
+  date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+
+const buildDailySeries = (orders, days) => {
+  const today = startOfDay(new Date());
+  const points = [];
+
+  for (let index = days - 1; index >= 0; index -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    const isoKey = date.toISOString().slice(0, 10);
+
+    points.push({
+      key: isoKey,
+      label: days <= 7 ? formatShortDay(date) : formatDayMonth(date),
+      value: 0,
+    });
+  }
+
+  const pointMap = new Map(points.map((point) => [point.key, point]));
+
+  orders.forEach((order) => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return;
+
+    const key = createdAt.toISOString().slice(0, 10);
+    const point = pointMap.get(key);
+    if (!point) return;
+
+    point.value += getOrderValue(order);
+  });
+
+  return points.map(({ key, ...point }) => point);
+};
+
+const buildWeeklySales = (series7d) => {
+  const summary = Object.fromEntries(DAY_ORDER.map((day) => [day, 0]));
+
+  series7d.forEach((point) => {
+    if (summary[point.label] === undefined) {
+      summary[point.label] = 0;
+    }
+    summary[point.label] += point.value;
+  });
+
+  return summary;
+};
+
+const normalizePaymentMethod = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "upi") return "upi";
+  if (raw === "card") return "card";
+  if (raw === "counter") return "counter";
+  return "unknown";
+};
 
 const buildAnalyticsData = async () => {
-    // ================= TODAY =================
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const allOrders = await Order.find().sort({ createdAt: -1 }).lean();
+  const revenueOrders = allOrders.filter((order) => order.status !== "cancelled");
 
-    const ordersToday = await Order.find({
-        createdAt: { $gte: today }
+  const today = startOfDay(new Date());
+  const ordersToday = revenueOrders.filter((order) => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    return createdAt && !Number.isNaN(createdAt.getTime()) && createdAt >= today;
+  });
+
+  const todaysSales = ordersToday.reduce((sum, order) => sum + getOrderValue(order), 0);
+  const totalOrders = revenueOrders.length;
+  const totalRevenue = revenueOrders.reduce((sum, order) => sum + getOrderValue(order), 0);
+  const netProfit = totalRevenue * PROFIT_MARGIN;
+
+  const salesSeries7d = buildDailySeries(revenueOrders, 7);
+  const salesSeries30d = buildDailySeries(revenueOrders, 30);
+  const weeklySales = buildWeeklySales(salesSeries7d);
+
+  const itemCount = {};
+  revenueOrders.forEach((order) => {
+    (order.items || []).forEach((item) => {
+      const itemName = item?.name || `Item ${item?.itemId ?? ""}`.trim();
+      itemCount[itemName] = (itemCount[itemName] || 0) + (Number(item?.quantity) || 0);
     });
+  });
 
-    const totalOrders = ordersToday.length;
+  const topSellingItems = Object.entries(itemCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, quantity]) => ({ name, quantity }));
 
-    const todaysSales = ordersToday.reduce(
-        (acc, order) => acc + order.totalAmount,
-        0
-    );
+  const bestSellingProduct = topSellingItems[0]
+    ? { name: topSellingItems[0].name, count: topSellingItems[0].quantity }
+    : { name: "N/A", count: 0 };
 
-    // ================= ALL TIME =================
-    const allOrders = await Order.find();
-
-    const totalRevenue = allOrders.reduce(
-        (acc, order) => acc + order.totalAmount,
-        0
-    );
-
-    // ================= PROFIT =================
-    const COST_PERCENTAGE = 0.6;
-    const netProfit = totalRevenue * (1 - COST_PERCENTAGE);
-
-    // ================= WEEKLY SALES =================
-    const last7Days = new Date();
-    last7Days.setDate(last7Days.getDate() - 7);
-
-    const weeklyOrders = await Order.find({
-        createdAt: { $gte: last7Days }
-    });
-
-    const salesByDay = {};
-
-    weeklyOrders.forEach(order => {
-        const day = new Date(order.createdAt).toLocaleDateString("en-US", {
-            weekday: "short"
-        });
-
-        salesByDay[day] = (salesByDay[day] || 0) + order.totalAmount;
-    });
-
-    // ================= BEST SELLING PRODUCT =================
-    const itemCount = {};
-
-    allOrders.forEach(order => {
-        if (order.items && order.items.length > 0) {
-            order.items.forEach(item => {
-                itemCount[item.name] =
-                    (itemCount[item.name] || 0) + item.quantity;
-            });
-        }
-    });
-
-    const bestSellingEntry =
-        Object.entries(itemCount).sort((a, b) => b[1] - a[1])[0] || ["N/A", 0];
-
-    const bestSellingProduct = {
-        name: bestSellingEntry[0],
-        count: bestSellingEntry[1]
-    };
-
-    // ================= CUSTOMER RETENTION =================
-    const userOrders = {};
-
-    allOrders.forEach(order => {
-        const userId = order.userId ? order.userId.toString() : "guest";
-        userOrders[userId] = (userOrders[userId] || 0) + 1;
-    });
-
-    const totalUsers = Object.keys(userOrders).length;
-
-    const repeatCustomers = Object.values(userOrders).filter(
-        count => count > 1
-    ).length;
-
-    const retentionRate =
-        totalUsers === 0
-            ? 0
-            : ((repeatCustomers / totalUsers) * 100).toFixed(1);
-
-    // ================= TOP SELLING ITEMS =================
-    const topSellingItems = Object.entries(itemCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, quantity]) => ({ name, quantity }));
-
-    // ================= PEAK HOURS =================
-    const hourlyOrders = {};
-
-    allOrders.forEach(order => {
-        const hour = new Date(order.createdAt).getHours();
-        hourlyOrders[hour] = (hourlyOrders[hour] || 0) + 1;
-    });
-
-    // ================= SMART ADVICE =================
-    let advice = "Sales are steady.";
-
-    if ((hourlyOrders[9] || 0) > 10) {
-        advice = "Morning rush is high. Add extra staff around 9 AM.";
-    } else if ((hourlyOrders[13] || 0) > 10) {
-        advice = "Lunch hours are busy. Prepare inventory in advance.";
-    } else if ((hourlyOrders[18] || 0) > 10) {
-        advice = "Evening peak detected. Optimize staff shifts.";
+  const paymentBreakdown = { upi: 0, card: 0, counter: 0 };
+  revenueOrders.forEach((order) => {
+    const key = normalizePaymentMethod(order.paymentMethod);
+    if (key in paymentBreakdown) {
+      paymentBreakdown[key] += 1;
     }
+  });
 
-    // ================= FINAL RESPONSE =================
-    return {
-        todaysSales,
-        totalOrders,
-        totalRevenue,
-        netProfit,
+  const hourlyOrders = {};
+  revenueOrders.forEach((order) => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return;
+    const hourKey = `${String(createdAt.getHours()).padStart(2, "0")}:00`;
+    hourlyOrders[hourKey] = (hourlyOrders[hourKey] || 0) + 1;
+  });
 
-        weeklySales: salesByDay,
+  const customerBuckets = {};
+  revenueOrders.forEach((order) => {
+    const userKey =
+      order.userId
+        ? `user:${String(order.userId)}`
+        : order.sessionId
+          ? `session:${order.sessionId}`
+          : `table:${order.tableId || "guest"}`;
 
-        bestSellingProduct,
-        retentionRate,
+    customerBuckets[userKey] = (customerBuckets[userKey] || 0) + 1;
+  });
 
-        topSellingItems,
+  const totalCustomerBuckets = Object.keys(customerBuckets).length;
+  const repeatCustomers = Object.values(customerBuckets).filter((count) => count > 1).length;
+  const retentionRate =
+    totalCustomerBuckets === 0
+      ? 0
+      : Number(((repeatCustomers / totalCustomerBuckets) * 100).toFixed(1));
 
-        peakHours: hourlyOrders,
+  const recentOrders = revenueOrders.slice(0, 5).map((order) => ({
+    _id: String(order._id),
+    tableId: order.tableId,
+    status: order.status,
+    grandTotal: getOrderValue(order),
+    createdAt: order.createdAt,
+    paymentMethod: order.paymentMethod || "UPI",
+  }));
 
-        advice
-    };
+  const busiestHourEntry = Object.entries(hourlyOrders).sort((a, b) => b[1] - a[1])[0];
+  let advice = "Orders are flowing steadily. Keep the current pace.";
+
+  if (busiestHourEntry) {
+    advice = `Peak traffic is around ${busiestHourEntry[0]}. Keep staff coverage strong during that hour.`;
+  }
+
+  if (bestSellingProduct.count > 0) {
+    advice = `${bestSellingProduct.name} is leading sales. Keep it stocked and featured on the menu.`;
+  }
+
+  return {
+    todaysSales,
+    totalOrders,
+    totalRevenue,
+    netProfit,
+    weeklySales,
+    salesSeries7d,
+    salesSeries30d,
+    bestSellingProduct,
+    retentionRate,
+    topSellingItems,
+    advice,
+    paymentBreakdown,
+    hourlyOrders,
+    recentOrders,
+  };
 };
 
 module.exports = { buildAnalyticsData };

@@ -9,13 +9,21 @@ interface AnalyticsResponse {
   totalRevenue: number;
   netProfit: number;
   weeklySales: Record<string, number>;
+  salesSeries7d?: Array<{ label: string; value: number }>;
+  salesSeries30d?: Array<{ label: string; value: number }>;
   bestSellingProduct: { name: string; count: number };
   retentionRate: string | number;
   topSellingItems: Array<{ name: string; quantity: number }>;
   advice: string;
+  recentOrders?: Array<{
+    _id: string;
+    tableId?: number;
+    status: string;
+    grandTotal: number;
+    createdAt: string;
+    paymentMethod?: string;
+  }>;
 }
-
-const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -32,7 +40,6 @@ export default function AdminDashboard() {
 
         const res = await API.get<AnalyticsResponse>("/analytics");
         setAnalytics(res.data);
-        console.log("Dashboard analytics loaded:", res.data);
       } catch (err) {
         console.error(err);
         setError("Failed to load dashboard analytics");
@@ -44,17 +51,31 @@ export default function AdminDashboard() {
     loadDashboard();
   }, []);
 
-  const weeklyBars = useMemo(() => {
-    const source = analytics?.weeklySales || {};
-    // Currently analytics provides weekly sales by day names. Range is wired
-    // so UI can toggle; data filtering/fetching can be extended later.
-    const bars = DAY_ORDER.map((day) => source[day] || 0);
-    // If 30d selected, keep same weekly visualization for now to avoid
-    // breaking the existing chart — this wires the range state to the component.
-    return bars;
+  const chartData = useMemo(() => {
+    if (!analytics) return [];
+
+    if (range === "30d" && analytics.salesSeries30d?.length) {
+      return analytics.salesSeries30d.map((point) => ({
+        label: point.label,
+        value: Number(point.value) || 0,
+      }));
+    }
+
+    if (analytics.salesSeries7d?.length) {
+      return analytics.salesSeries7d.map((point) => ({
+        label: point.label,
+        value: Number(point.value) || 0,
+      }));
+    }
+
+    return Object.entries(analytics.weeklySales || {}).map(([label, value]) => ({
+      label,
+      value: Number(value) || 0,
+    }));
   }, [analytics, range]);
 
-  const maxBar = Math.max(...weeklyBars, 1);
+  const maxBar = Math.max(...chartData.map((point) => point.value), 1);
+  const peakIndex = chartData.findIndex((point) => point.value === maxBar);
 
   return (
     <div className="space-y-8 w-full">
@@ -94,7 +115,7 @@ export default function AdminDashboard() {
             })()}
           </div>
 
-          <p className="text-xs text-gray-400 mt-2">Live from `analyticsController`</p>
+          <p className="text-xs text-gray-400 mt-2">Live order revenue from today</p>
         </div>
 
         {/* ORDERS */}
@@ -153,7 +174,14 @@ export default function AdminDashboard() {
         {/* CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm ">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-lg">Weekly Sales Performance</h2>
+            <div>
+              <h2 className="font-bold text-lg">
+                {range === "30d" ? "30 Day Sales Performance" : "Weekly Sales Performance"}
+              </h2>
+              <p className="text-sm text-secondary">
+                {range === "30d" ? "Revenue from the last 30 days" : "Revenue from the last 7 days"}
+              </p>
+            </div>
             <div className="flex gap-2 text-sm">
               <button
                 onClick={() => setRange('7d')}
@@ -170,17 +198,34 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Fake chart */}
-          <div className="flex items-end gap-4 h-40">
-            {weeklyBars.map((value, i) => (
-              <div
-                key={i}
-                className={`w-full rounded ${
-                  i === weeklyBars.indexOf(maxBar) ? "bg-primary" : "bg-gray-200"
-                }`}
-                style={{ height: `${Math.max(12, (value / maxBar) * 100)}%` }}
-              />
-            ))}
+          <div className="h-48">
+            <div className="flex h-full items-end gap-3">
+              {chartData.map((point, index) => {
+                const height = point.value > 0 ? Math.max(10, (point.value / maxBar) * 100) : 4;
+                const showLabel = range === "7d" || chartData.length <= 10 || index % 5 === 0;
+
+                return (
+                  <div
+                    key={`${point.label}-${index}`}
+                    className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+                    title={`${point.label}: ₹${point.value.toFixed(2)}`}
+                  >
+                    <span className="text-[11px] font-semibold text-secondary">
+                      ₹{point.value.toFixed(0)}
+                    </span>
+                    <div
+                      className={`w-full rounded-t-md transition-all ${
+                        index === peakIndex ? "bg-primary" : "bg-gray-200"
+                      }`}
+                      style={{ height: `${height}%` }}
+                    />
+                    <span className="min-h-[16px] text-[10px] font-medium uppercase tracking-wide text-secondary">
+                      {showLabel ? point.label : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -214,15 +259,15 @@ export default function AdminDashboard() {
         </div>
 
         <div className="divide-y">
-          {(analytics?.topSellingItems || []).slice(0, 3).map((item, idx) => (
-            <div key={item.name} className="flex justify-between p-4 text-sm">
-              <span>#{idx + 1}</span>
-              <span>{item.name}</span>
-              <span>Top Item</span>
-              <span className="font-bold">{item.quantity} sold</span>
+          {(analytics?.recentOrders || []).map((order) => (
+            <div key={order._id} className="flex justify-between p-4 text-sm">
+              <span>#{order._id.slice(-4)}</span>
+              <span>Table {order.tableId ?? 'N/A'}</span>
+              <span className="capitalize">{order.status}</span>
+              <span className="font-bold">₹{order.grandTotal.toFixed(2)}</span>
             </div>
           ))}
-          {!loading && analytics && analytics.topSellingItems.length === 0 && (
+          {!loading && analytics && (!analytics.recentOrders || analytics.recentOrders.length === 0) && (
             <div className="p-4 text-sm text-secondary">No order insights yet.</div>
           )}
         </div>

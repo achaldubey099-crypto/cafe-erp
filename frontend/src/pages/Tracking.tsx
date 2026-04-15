@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star } from 'lucide-react';
+import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../lib/api';
@@ -32,13 +32,21 @@ export default function Tracking() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const tableId = new URLSearchParams(location.search).get('tableId') || String(getTableId());
+    const tableIdFromQuery = new URLSearchParams(location.search).get('tableId');
+    const boundTableId = tableIdFromQuery || (getTableId() ? String(getTableId()) : "");
 
     const fetchLatestOrder = async () => {
+      if (!boundTableId) {
+        setOrder(null);
+        setLoading(false);
+        setError('Scan your table QR to load your order status');
+        return;
+      }
+
       try {
         setLoading(true);
         setError('');
-        const res = await API.get<Order>('/orders/latest', { params: { tableId } });
+        const res = await API.get<Order>('/orders/latest', { params: { tableId: boundTableId } });
         setOrder(res.data);
       } catch (err: any) {
         if (err?.response?.status === 404) {
@@ -130,12 +138,14 @@ export default function Tracking() {
   const isPreparing = order?.status === 'preparing';
   const isReady = order?.status === 'ready';
   const isCompleted = order?.status === 'completed';
+  const isCancelled = order?.status === 'cancelled';
 
   const hasStarted = !!order;
-  const hasPreparing = isPreparing || isReady || isCompleted;
-  const hasReady = isReady || isCompleted;
+  const hasPreparing = !isCancelled && (isPreparing || isReady || isCompleted);
+  const hasReady = !isCancelled && (isReady || isCompleted);
 
-  const currentDisplayStatus = isReady ? 'Ready for Pickup' 
+  const currentDisplayStatus = isCancelled ? 'Cancelled'
+    : isReady ? 'Ready for Pickup' 
     : isPreparing ? 'Preparing' 
     : isPending ? 'Pending'
     : isCompleted ? 'Completed'
@@ -167,13 +177,27 @@ export default function Tracking() {
           </div>
           <div className="space-y-1">
             <span className="font-body text-[11px] font-semibold tracking-wider uppercase text-secondary">Current Status</span>
-            <h2 className="font-headline text-3xl font-extrabold text-primary">
+            <h2 className={cn(
+              "font-headline text-3xl font-extrabold",
+              isCancelled ? "text-red-600" : "text-primary"
+            )}>
               {loading ? 'Loading...' : currentDisplayStatus}
             </h2>
             <p className="text-on-surface-variant text-sm">
-              {order?.estimatedTime ? `Estimated arrival: ${order.estimatedTime}` : 'Real-time kitchen updates'}
+              {isCancelled
+                ? 'This order was cancelled and will not be prepared.'
+                : order?.estimatedTime
+                  ? `Estimated arrival: ${order.estimatedTime}`
+                  : 'Real-time kitchen updates'}
             </p>
           </div>
+
+          {isCancelled && (
+            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <XCircle size={18} />
+              <span>The kitchen marked this order as cancelled.</span>
+            </div>
+          )}
 
           <div className="mt-10 relative">
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-surface-container-high rounded-full" />

@@ -1,13 +1,24 @@
 const Order = require('../models/Order');
 
+const PAYMENT_METHOD_MAP = {
+    upi: "UPI",
+    card: "Card",
+    counter: "Counter",
+};
+
+const normalizePaymentMethod = (value) => {
+    if (!value) {
+        return "UPI";
+    }
+
+    const key = String(value).trim().toLowerCase();
+    return PAYMENT_METHOD_MAP[key] || null;
+};
+
 
 // ================= CREATE ORDER =================
 exports.createOrder = async (req, res) => {
     try {
-        if (req.user?.role !== "user") {
-            return res.status(403).json({ message: "Customer login is required to place orders" });
-        }
-
         const {
             tableId,
             sessionId,
@@ -16,9 +27,15 @@ exports.createOrder = async (req, res) => {
             splitBill
         } = req.body;
 
+        const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+
         // 🔴 Validation
         if (!tableId || !items || items.length === 0) {
             return res.status(400).json({ message: "Invalid order data" });
+        }
+
+        if (!normalizedPaymentMethod) {
+            return res.status(400).json({ message: "Invalid payment method" });
         }
 
         // 🧮 Calculate subtotal
@@ -53,9 +70,9 @@ exports.createOrder = async (req, res) => {
         const order = await Order.create({
             tableId,
             sessionId, // ✅ IMPORTANT (added)
-            userId: req.user?.id,
+            userId: req.user?.role === "user" ? req.user.id : null,
             items,
-            paymentMethod,
+            paymentMethod: normalizedPaymentMethod,
             totalAmount,
             platformFee,
             serviceTax,

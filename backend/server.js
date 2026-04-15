@@ -12,19 +12,23 @@ connectDB();
 
 // ================= MIDDLEWARE =================
 
-// ✅ CORS (FIXED - supports localhost + network)
-const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://192.168.137.190:3000"
-];
+const isProduction = process.env.NODE_ENV === "production";
+const explicitAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
 app.use(cors({
     origin: function (origin, callback) {
         // allow requests with no origin (like mobile apps, curl)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin)) {
+        if (!isProduction) {
+            callback(null, true);
+            return;
+        }
+
+        if (explicitAllowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             console.log("❌ Blocked by CORS:", origin);
