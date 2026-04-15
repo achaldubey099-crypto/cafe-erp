@@ -1,13 +1,26 @@
 const Order = require("../models/Order");
+const StoreSettings = require("../models/StoreSettings");
 
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const PROFIT_MARGIN = 0.4;
+const DEFAULT_PROFIT_MARGIN = 0.4;
 
 const getOrderValue = (order) => Number(order?.grandTotal ?? order?.totalAmount ?? 0) || 0;
 
 const startOfDay = (date) => {
   const next = new Date(date);
   next.setHours(0, 0, 0, 0);
+  return next;
+};
+
+const startOfMonth = (date) => {
+  const next = startOfDay(date);
+  next.setDate(1);
+  return next;
+};
+
+const startOfYear = (date) => {
+  const next = startOfDay(date);
+  next.setMonth(0, 1);
   return next;
 };
 
@@ -70,7 +83,58 @@ const normalizePaymentMethod = (value) => {
   return "unknown";
 };
 
+const buildPeriodTotals = (orders, profitMargin) => {
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const yearStart = startOfYear(now);
+
+  const monthOrders = orders.filter((order) => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    return createdAt && !Number.isNaN(createdAt.getTime()) && createdAt >= monthStart;
+  });
+
+  const yearOrders = orders.filter((order) => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    return createdAt && !Number.isNaN(createdAt.getTime()) && createdAt >= yearStart;
+  });
+
+  const getRevenue = (source) => source.reduce((sum, order) => sum + getOrderValue(order), 0);
+
+  const monthRevenue = getRevenue(monthOrders);
+  const yearRevenue = getRevenue(yearOrders);
+  const allTimeRevenue = getRevenue(orders);
+
+  return {
+    month: {
+      revenue: monthRevenue,
+      profit: monthRevenue * profitMargin,
+    },
+    year: {
+      revenue: yearRevenue,
+      profit: yearRevenue * profitMargin,
+    },
+    allTime: {
+      revenue: allTimeRevenue,
+      profit: allTimeRevenue * profitMargin,
+    },
+  };
+};
+
+const getStoreSettings = async () => {
+  let settings = await StoreSettings.findOne().lean();
+
+  if (!settings) {
+    settings = await StoreSettings.create({ profitMargin: DEFAULT_PROFIT_MARGIN });
+    return settings.toObject();
+  }
+
+  return settings;
+};
+
 const buildAnalyticsData = async () => {
+  const settings = await getStoreSettings();
+  const profitMargin =
+    typeof settings?.profitMargin === "number" ? settings.profitMargin : DEFAULT_PROFIT_MARGIN;
   const allOrders = await Order.find().sort({ createdAt: -1 }).lean();
   const revenueOrders = allOrders.filter((order) => order.status !== "cancelled");
 
@@ -83,7 +147,8 @@ const buildAnalyticsData = async () => {
   const todaysSales = ordersToday.reduce((sum, order) => sum + getOrderValue(order), 0);
   const totalOrders = revenueOrders.length;
   const totalRevenue = revenueOrders.reduce((sum, order) => sum + getOrderValue(order), 0);
-  const netProfit = totalRevenue * PROFIT_MARGIN;
+  const netProfit = totalRevenue * profitMargin;
+  const periodTotals = buildPeriodTotals(revenueOrders, profitMargin);
 
   const salesSeries7d = buildDailySeries(revenueOrders, 7);
   const salesSeries30d = buildDailySeries(revenueOrders, 30);
@@ -166,6 +231,8 @@ const buildAnalyticsData = async () => {
     totalOrders,
     totalRevenue,
     netProfit,
+    profitMargin,
+    periodTotals,
     weeklySales,
     salesSeries7d,
     salesSeries30d,
@@ -179,4 +246,4 @@ const buildAnalyticsData = async () => {
   };
 };
 
-module.exports = { buildAnalyticsData };
+module.exports = { buildAnalyticsData, getStoreSettings, DEFAULT_PROFIT_MARGIN };

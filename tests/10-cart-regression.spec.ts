@@ -231,10 +231,10 @@ test.describe('Cart Regression Suite', () => {
     await expect(page.getByRole('button', { name: 'Checkout' })).toHaveCount(0);
   });
 
-  test('guest checkout redirects to login', async ({ page }) => {
+  test('guest checkout goes to checkout page', async ({ page }) => {
     await openCart(page, { cart: TEST_CART });
     await page.getByRole('button', { name: 'Checkout' }).click();
-    await expect(page).toHaveURL(/\/login\?returnTo=\/checkout/);
+    await expect(page).toHaveURL(/\/checkout/);
   });
 
   test('logged-in customer checkout goes to checkout page', async ({ page }) => {

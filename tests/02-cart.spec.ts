@@ -54,15 +54,15 @@ test.describe('Cart Page', () => {
     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });
   });
 
-  test('checkout button redirects guest to login', async ({ page }) => {
+  test('checkout button takes guest to checkout', async ({ page }) => {
     await gotoCartWithItems(page);
     
     const checkoutBtn = page.locator('button', { hasText: 'Checkout' });
     await expect(checkoutBtn).toBeVisible({ timeout: 5000 });
     await checkoutBtn.click();
     
-    await page.waitForURL('**/login**', { timeout: 5000 });
-    expect(page.url()).toContain('/login');
+    await page.waitForURL('**/checkout**', { timeout: 5000 });
+    expect(page.url()).toContain('/checkout');
   });
 
   test('total price displays correctly for injected items', async ({ page }) => {

@@ -169,15 +169,15 @@ test.describe('Razorpay Checkout Flows', () => {
 
     await expect.poll(() => verifyPayload?.razorpay_payment_id).toBe('pay_card_1');
     await expect.poll(() => orderPayload?.paymentMethod).toBe('Card');
+    await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
+    await page.getByRole('button', { name: 'Track Order' }).click();
     await expect(page).toHaveURL(/\/orders\?tableId=7/);
 
     const state = await page.evaluate(() => ({
       cart: JSON.parse(localStorage.getItem('cart') || '[]'),
-      alert: (window as typeof window & { __lastAlert?: string }).__lastAlert || '',
     }));
 
     expect(state.cart).toEqual([]);
-    expect(state.alert).toBe('Order placed successfully!');
   });
 
   test('Counter checkout bypasses Razorpay and posts the order directly', async ({ page }) => {
@@ -214,7 +214,7 @@ test.describe('Razorpay Checkout Flows', () => {
     await page.getByRole('button', { name: 'Counter' }).click();
     await page.getByRole('button', { name: /Place Order/ }).click();
 
-    await expect(page).toHaveURL(/\/orders\?tableId=7/);
+    await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
     expect(createOrderCalls).toBe(0);
     expect(orderPayload?.paymentMethod).toBe('Counter');
   });
@@ -240,9 +240,7 @@ test.describe('Razorpay Checkout Flows', () => {
     await openCheckout(page);
     await page.getByRole('button', { name: /Place Order/ }).click();
 
-    await page.waitForFunction(
-      () => (window as typeof window & { __lastAlert?: string }).__lastAlert === 'Payment could not be initiated. Please try again.'
-    );
+    await expect(page.getByRole('heading', { name: 'Payment Failed' })).toBeVisible();
 
     expect(orderCalls).toBe(0);
   });
@@ -261,9 +259,7 @@ test.describe('Razorpay Checkout Flows', () => {
     await waitForMockRazorpay(page);
     await page.getByRole('button', { name: /Place Order/ }).click();
 
-    await page.waitForFunction(
-      () => (window as typeof window & { __lastAlert?: string }).__lastAlert === 'Payment could not be initiated. Please try again.'
-    );
+    await expect(page.getByRole('heading', { name: 'Payment Failed' })).toBeVisible();
   });
 });
 

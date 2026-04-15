@@ -120,7 +120,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('dashboard shows net profit card', async ({ page }) => {
     await openAdmin(page, '/admin');
-    await expect(page.getByText('Net Profit (Monthly)')).toBeVisible();
+    await expect(page.getByText(/Net Profit/)).toBeVisible();
   });
 
   test('dashboard shows weekly sales performance block', async ({ page }) => {
@@ -381,7 +381,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('analytics page shows net profit card', async ({ page }) => {
     await openAdmin(page, '/admin/analytics');
-    await expect(page.getByText('Net Profit')).toBeVisible();
+    await expect(page.getByText('Month Net Profit')).toBeVisible();
   });
 
   test('analytics page shows best seller insight', async ({ page }) => {

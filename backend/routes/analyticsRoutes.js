@@ -5,9 +5,10 @@ const router = express.Router();
 const { protectAdmin } = require("../middleware/auth");
 
 // ✅ Controller import (CommonJS)
-const { getAnalytics } = require("../controller/analyticsController");
+const { getAnalytics, updateProfitMargin } = require("../controller/analyticsController");
 
 // ✅ Route (Admin only)
 router.get("/", protectAdmin, getAnalytics);
+router.patch("/profit-margin", protectAdmin, updateProfitMargin);
 
 module.exports = router;

@@ -115,12 +115,11 @@ test.describe('Menu Regression Suite', () => {
   }
 
   for (const productName of guestProtectedProducts) {
-    test(`guest add-to-cart from ${productName} redirects to login`, async ({ page }) => {
+    test(`guest add-to-cart from ${productName} stays on menu`, async ({ page }) => {
       await openMenu(page);
       const card = gridProductCard(page, productName);
       await card.getByRole('button').last().click();
-      await page.waitForURL('**/login**');
-      await expect(page).toHaveURL(/\/login/);
+      await expect(page).toHaveURL(/\/$/);
     });
 
     test(`guest favorite tap from ${productName} redirects to login`, async ({ page }) => {

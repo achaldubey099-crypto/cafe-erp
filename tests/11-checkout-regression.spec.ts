@@ -46,9 +46,9 @@ test.describe('Checkout Regression Suite', () => {
     await clearStorage(page);
   });
 
-  test('guest is redirected to login', async ({ page }) => {
+  test('guest can open checkout', async ({ page }) => {
     await openCheckout(page, { cart: TEST_CART });
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole('heading', { name: 'Finalize Order' })).toBeVisible();
   });
 
   test('authenticated customer sees finalize order heading', async ({ page }) => {
@@ -223,29 +223,21 @@ test.describe('Checkout Regression Suite', () => {
     await expect(page.getByRole('heading', { name: 'Finalize Order' })).toBeVisible();
   });
 
-  test('placing order with empty cart shows alert', async ({ page }) => {
+  test('placing order with empty cart shows error modal', async ({ page }) => {
     await openCheckout(page, { customer: true, cart: [] as typeof TEST_CART });
-    await page.evaluate(() => {
-      (window as typeof window & { __lastAlert?: string }).__lastAlert = '';
-      window.alert = (message?: string) => {
-        (window as typeof window & { __lastAlert?: string }).__lastAlert = String(message ?? '');
-      };
-    });
     await page.getByRole('button', { name: 'Counter' }).click();
-    await page.getByRole('button', { name: /Place Order/ }).evaluate((button: HTMLButtonElement) => button.click());
-    await page.waitForFunction(() => (window as typeof window & { __lastAlert?: string }).__lastAlert === 'Cart is empty');
+    await page.getByRole('button', { name: /Place Order/ }).click();
+    await expect(page.getByRole('heading', { name: 'Cart Is Empty' })).toBeVisible();
   });
 
-  test('successful order placement shows success alert', async ({ page }) => {
+  test('successful order placement shows success modal', async ({ page }) => {
     await mockOrderSubmission(page, TRACKING_ORDER);
     await mockLatestOrder(page, TRACKING_ORDER);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
     await page.getByRole('button', { name: 'Counter' }).click();
-    const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
-    const dialog = await dialogPromise;
-    expect(dialog.message()).toBe('Order placed successfully!');
-    await dialog.accept();
+    await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Track Order' })).toBeVisible();
   });
 
   test('successful order placement navigates to orders with table id', async ({ page }) => {
@@ -254,10 +246,8 @@ test.describe('Checkout Regression Suite', () => {
     await mockFeedback(page, null);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
     await page.getByRole('button', { name: 'Counter' }).click();
-    const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
-    const dialog = await dialogPromise;
-    await dialog.accept();
+    await page.getByRole('button', { name: 'Track Order' }).click();
     await expect(page).toHaveURL(/\/orders\?tableId=7/);
   });
 
@@ -267,10 +257,8 @@ test.describe('Checkout Regression Suite', () => {
     await mockFeedback(page, null);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
     await page.getByRole('button', { name: 'Counter' }).click();
-    const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
-    const dialog = await dialogPromise;
-    await dialog.accept();
+    await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
     const cart = await page.evaluate(() => JSON.parse(localStorage.getItem('cart') || '[]'));
     expect(cart).toEqual([]);
   });

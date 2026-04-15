@@ -44,7 +44,7 @@ export default function AdminLayout() {
           </div>
         </header>
         
-        <div className="flex-1 p-8">
+        <div className="flex-1 px-8 pb-8 pt-10">
           <Outlet />
         </div>
       </main>

@@ -18,6 +18,12 @@ interface AnalyticsResponse {
   totalOrders: number;
   totalRevenue: number;
   netProfit: number;
+  profitMargin?: number;
+  periodTotals?: {
+    month: { revenue: number; profit: number };
+    year: { revenue: number; profit: number };
+    allTime: { revenue: number; profit: number };
+  };
   weeklySales: Record<string, number>;
   salesSeries7d?: Array<{ label: string; value: number }>;
   salesSeries30d?: Array<{ label: string; value: number }>;
@@ -29,11 +35,32 @@ interface AnalyticsResponse {
   hourlyOrders?: Record<string, number>;
 }
 
+type FinancialScope = 'month' | 'year' | 'allTime';
+
+const FINANCIAL_SCOPE_OPTIONS: Array<{ key: FinancialScope; label: string }> = [
+  { key: 'month', label: 'Month' },
+  { key: 'year', label: 'Year' },
+  { key: 'allTime', label: 'All Time' },
+];
+
+const getChartTickParts = (label: string, range: '7d' | '30d') => {
+  if (range === '7d') {
+    return { primary: label, secondary: '' };
+  }
+
+  const [month = '', day = ''] = label.split(' ');
+  return { primary: day || label, secondary: month };
+};
+
 export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [range, setRange] = useState<'7d' | '30d'>('7d');
+  const [financialScope, setFinancialScope] = useState<FinancialScope>('month');
+  const [profitMarginPercent, setProfitMarginPercent] = useState('40');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     const loadAnalytics = async () => {
@@ -43,6 +70,7 @@ export default function AdminAnalytics() {
 
         const res = await API.get<AnalyticsResponse>('/analytics');
         setAnalytics(res.data);
+        setProfitMarginPercent(String(Math.round((res.data.profitMargin ?? 0.4) * 100)));
       } catch (err) {
         console.error(err);
         setError('Failed to load analytics data');
@@ -54,11 +82,45 @@ export default function AdminAnalytics() {
     loadAnalytics();
   }, []);
 
+  const saveProfitMargin = async () => {
+    const parsed = Number(profitMarginPercent);
+
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      setSaveState('error');
+      setSaveMessage('Enter a percentage between 0 and 100.');
+      return;
+    }
+
+    try {
+      setSaveState('saving');
+      setSaveMessage('');
+
+      const res = await API.patch<AnalyticsResponse>('/analytics/profit-margin', {
+        profitMargin: parsed / 100,
+      });
+
+      setAnalytics(res.data);
+      setProfitMarginPercent(String(Math.round((res.data.profitMargin ?? parsed / 100) * 100)));
+      setSaveState('saved');
+      setSaveMessage('Profit margin updated.');
+    } catch (err) {
+      console.error(err);
+      setSaveState('error');
+      setSaveMessage('Could not update the profit margin.');
+    }
+  };
+
   const summary = [
     { label: "Today's Sales", value: `₹${analytics?.todaysSales.toFixed(2) || '0.00'}`, trend: 'Live', icon: TrendingUp },
     { label: 'Total Orders', value: `${analytics?.totalOrders ?? 0}`, trend: 'Live', icon: Receipt },
-    { label: 'Total Revenue', value: `₹${analytics?.totalRevenue.toFixed(2) || '0.00'}`, trend: 'Live', icon: Wallet },
   ];
+
+  const scopedFinancials = analytics?.periodTotals?.[financialScope] ?? {
+    revenue: analytics?.totalRevenue ?? 0,
+    profit: analytics?.netProfit ?? 0,
+  };
+
+  const financialScopeLabel = FINANCIAL_SCOPE_OPTIONS.find((option) => option.key === financialScope)?.label ?? 'Month';
 
   const chartData = useMemo(() => {
     if (!analytics) return [];
@@ -93,19 +155,34 @@ export default function AdminAnalytics() {
           <p className="text-sm text-secondary font-bold tracking-wide uppercase">Performance Overview</p>
           <h2 className="text-3xl font-extrabold text-primary mt-1 font-headline">Business Analytics</h2>
         </div>
-        <div className="flex bg-surface-container-high p-1 rounded-2xl">
-          <button
-            onClick={() => setRange('7d')}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '7d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
-          >
-            7 Days
-          </button>
-          <button
-            onClick={() => setRange('30d')}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '30d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
-          >
-            30 Days
-          </button>
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex bg-surface-container-high p-1 rounded-2xl">
+            {FINANCIAL_SCOPE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => setFinancialScope(option.key)}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  financialScope === option.key ? 'bg-white text-primary shadow-sm' : 'text-secondary'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex bg-surface-container-high p-1 rounded-2xl">
+            <button
+              onClick={() => setRange('7d')}
+              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '7d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
+            >
+              7 Days
+            </button>
+            <button
+              onClick={() => setRange('30d')}
+              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${range === '30d' ? 'bg-white text-primary shadow-sm' : 'text-secondary'}`}
+            >
+              30 Days
+            </button>
+          </div>
         </div>
       </div>
 
@@ -129,19 +206,35 @@ export default function AdminAnalytics() {
             <div className="text-2xl font-black text-on-surface mt-1 font-headline">{item.value}</div>
           </div>
         ))}
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm hover:scale-[1.02] transition-all duration-300">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+              <Wallet size={24} />
+            </div>
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-surface-container text-secondary">
+              {financialScopeLabel}
+            </span>
+          </div>
+          <div className="text-secondary text-xs font-bold uppercase tracking-wider">{financialScopeLabel} Revenue</div>
+          <div className="text-2xl font-black text-on-surface mt-1 font-headline">₹{scopedFinancials.revenue.toFixed(2)}</div>
+        </div>
         
         <div className="bg-primary text-on-primary p-6 rounded-3xl shadow-xl shadow-primary/20 transition-transform hover:scale-[1.02]">
           <div className="flex justify-between items-start mb-4">
             <div className="p-3 bg-white/20 rounded-2xl">
               <BarChart2 size={24} />
             </div>
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white/15 text-white/90">
+              {financialScopeLabel}
+            </span>
           </div>
-          <div className="text-on-primary/70 text-xs font-bold uppercase tracking-wider">Net Profit</div>
-          <div className="text-2xl font-black mt-1 font-headline">₹{analytics?.netProfit.toFixed(2) || '0.00'}</div>
+          <div className="text-on-primary/70 text-xs font-bold uppercase tracking-wider">{financialScopeLabel} Net Profit</div>
+          <div className="text-2xl font-black mt-1 font-headline">₹{scopedFinancials.profit.toFixed(2)}</div>
           <div className="mt-4 h-1 w-full bg-white/20 rounded-full overflow-hidden">
             {(() => {
-              const current = analytics?.netProfit || 0;
-              const total = analytics?.totalRevenue || 1;
+              const current = scopedFinancials.profit || 0;
+              const total = scopedFinancials.revenue || 1;
               const percentage = total > 0 ? (current / total) * 100 : 0;
               const safePercentage = Math.max(0, Math.min(percentage || 0, 100));
               const visible = safePercentage > 2 ? safePercentage : 2;
@@ -149,12 +242,56 @@ export default function AdminAnalytics() {
             })()}
           </div>
           <div className="text-[10px] uppercase tracking-wider mt-2 opacity-80 font-bold">{(() => {
-            const current = analytics?.netProfit || 0;
-            const total = analytics?.totalRevenue || 1;
+            const current = scopedFinancials.profit || 0;
+            const total = scopedFinancials.revenue || 1;
             const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
             return `${percentage}% of target hit`;
           })()}</div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-outline/5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-primary">Net Profit Margin</h3>
+            <p className="text-sm text-secondary">Adjust the percentage used to estimate net profit from revenue.</p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wide text-secondary">Profit Margin %</label>
+              <div className="flex items-center rounded-xl border border-outline/10 bg-surface-container-low px-4">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={profitMarginPercent}
+                  onChange={(e) => {
+                    setProfitMarginPercent(e.target.value);
+                    if (saveState !== 'idle') {
+                      setSaveState('idle');
+                      setSaveMessage('');
+                    }
+                  }}
+                  className="w-24 bg-transparent py-3 text-sm font-semibold text-on-surface outline-none"
+                />
+                <span className="text-sm font-semibold text-secondary">%</span>
+              </div>
+            </div>
+            <button
+              onClick={saveProfitMargin}
+              disabled={saveState === 'saving'}
+              className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saveState === 'saving' ? 'Saving...' : 'Save Margin'}
+            </button>
+          </div>
+        </div>
+        {saveMessage && (
+          <p className={`mt-3 text-sm ${saveState === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+            {saveMessage}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-12 gap-6">
@@ -173,16 +310,23 @@ export default function AdminAnalytics() {
               <MoreVertical size={20} className="text-secondary" />
             </button>
           </div>
-          <div className="h-64 flex items-end justify-between gap-4 px-2">
+          <div className="h-64 overflow-hidden px-4 pt-6">
+            <div className="flex h-full items-end gap-2 overflow-hidden pr-3">
             {chartData.map((d, i) => {
               const value = Number(d.value) || 0;
               const height = value > 0 ? Math.max(10, (value / maxBar) * 100) : 4;
+              const showLabel = range === '7d' || chartData.length <= 10 || i % 5 === 0;
+              const showValue = value > 0 && (range === '7d' || i === maxIndex || showLabel);
+              const tick = getChartTickParts(d.name, range);
               return (
                 <div
                   key={d.name}
-                  className="flex h-full flex-1 flex-col items-center justify-end gap-2 group cursor-pointer"
+                  className="flex min-w-0 flex-1 h-full flex-col items-center justify-end gap-2 group cursor-pointer"
                   title={`${d.name}: ₹${value.toFixed(2)}`}
                 >
+                  <span className={`min-h-[16px] text-[11px] font-semibold text-secondary transition-opacity ${showValue ? 'opacity-100' : 'opacity-0'}`}>
+                    ₹{value.toFixed(0)}
+                  </span>
                   <div
                     className={cn(
                       "w-full rounded-t-xl transition-all duration-500",
@@ -190,12 +334,22 @@ export default function AdminAnalytics() {
                     )}
                     style={{ height: `${height}%` }}
                   />
-                  <span className="text-[10px] font-bold text-secondary uppercase">
-                    {range === '30d' && chartData.length > 10 && i % 5 !== 0 ? '' : d.name}
+                  <span className="min-h-[24px] text-center text-[10px] font-bold uppercase text-secondary leading-none">
+                    {showLabel ? (
+                      range === '30d' ? (
+                        <>
+                          <span className="block">{tick.primary}</span>
+                          <span className="block text-[9px] font-medium normal-case tracking-normal">{tick.secondary}</span>
+                        </>
+                      ) : (
+                        d.name
+                      )
+                    ) : ''}
                   </span>
                 </div>
               );
             })}
+            </div>
           </div>
 
           {/* Additional Reports Section */}

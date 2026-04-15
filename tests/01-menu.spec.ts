@@ -60,7 +60,7 @@ test.describe('Menu Page', () => {
     await expect(loginButton).toBeVisible();
   });
 
-  test('add-to-cart redirects guest to /login', async ({ page }) => {
+  test('add-to-cart works for guests without redirecting', async ({ page }) => {
     await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
     
     // Try clicking the first + button on a product card
@@ -68,8 +68,8 @@ test.describe('Menu Page', () => {
     
     if (await addButton.isVisible().catch(() => false)) {
       await addButton.click();
-      await page.waitForURL('**/login**', { timeout: 5000 });
-      expect(page.url()).toContain('/login');
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.locator('text=/\\d+ Items/').first()).toBeVisible();
     }
   });
 

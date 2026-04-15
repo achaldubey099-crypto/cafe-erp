@@ -60,7 +60,15 @@ export interface MockAnalytics {
   totalOrders: number;
   totalRevenue: number;
   netProfit: number;
+  profitMargin?: number;
+  periodTotals?: {
+    month: { revenue: number; profit: number };
+    year: { revenue: number; profit: number };
+    allTime: { revenue: number; profit: number };
+  };
   weeklySales: Record<string, number>;
+  salesSeries7d?: Array<{ label: string; value: number }>;
+  salesSeries30d?: Array<{ label: string; value: number }>;
   bestSellingProduct: { name: string; count: number };
   retentionRate: string | number;
   topSellingItems: Array<{ name: string; quantity: number }>;
@@ -348,6 +356,12 @@ export const ANALYTICS_FIXTURE: MockAnalytics = {
   totalOrders: 37,
   totalRevenue: 124500,
   netProfit: 48250,
+  profitMargin: 0.3876,
+  periodTotals: {
+    month: { revenue: 42350, profit: 16420.86 },
+    year: { revenue: 124500, profit: 48250 },
+    allTime: { revenue: 196000, profit: 75969.6 },
+  },
   weeklySales: {
     Mon: 1400,
     Tue: 1100,
@@ -357,6 +371,47 @@ export const ANALYTICS_FIXTURE: MockAnalytics = {
     Sat: 3200,
     Sun: 2900,
   },
+  salesSeries7d: [
+    { label: 'Mon', value: 1400 },
+    { label: 'Tue', value: 1100 },
+    { label: 'Wed', value: 1800 },
+    { label: 'Thu', value: 2200 },
+    { label: 'Fri', value: 2600 },
+    { label: 'Sat', value: 3200 },
+    { label: 'Sun', value: 2900 },
+  ],
+  salesSeries30d: [
+    { label: '17 Mar', value: 0 },
+    { label: '18 Mar', value: 0 },
+    { label: '19 Mar', value: 0 },
+    { label: '20 Mar', value: 350 },
+    { label: '21 Mar', value: 0 },
+    { label: '22 Mar', value: 0 },
+    { label: '23 Mar', value: 420 },
+    { label: '24 Mar', value: 0 },
+    { label: '25 Mar', value: 0 },
+    { label: '26 Mar', value: 0 },
+    { label: '27 Mar', value: 610 },
+    { label: '28 Mar', value: 0 },
+    { label: '29 Mar', value: 0 },
+    { label: '30 Mar', value: 0 },
+    { label: '31 Mar', value: 0 },
+    { label: '1 Apr', value: 520 },
+    { label: '2 Apr', value: 0 },
+    { label: '3 Apr', value: 0 },
+    { label: '4 Apr', value: 0 },
+    { label: '5 Apr', value: 0 },
+    { label: '6 Apr', value: 880 },
+    { label: '7 Apr', value: 0 },
+    { label: '8 Apr', value: 0 },
+    { label: '9 Apr', value: 0 },
+    { label: '10 Apr', value: 0 },
+    { label: '11 Apr', value: 1100 },
+    { label: '12 Apr', value: 0 },
+    { label: '13 Apr', value: 0 },
+    { label: '14 Apr', value: 0 },
+    { label: '15 Apr', value: 2075 },
+  ],
   bestSellingProduct: {
     name: 'Red Velvet Latte',
     count: 42,
@@ -699,6 +754,39 @@ export async function mockAdminOrders(page: Page, orders = ADMIN_ORDERS) {
 
 export async function mockAnalytics(page: Page, analytics = ANALYTICS_FIXTURE) {
   await page.route('**/api/analytics**', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      const payload = route.request().postDataJSON?.() || {};
+      const profitMargin = Number(payload.profitMargin ?? analytics.profitMargin ?? 0.4);
+      const periodTotals = analytics.periodTotals || {
+        month: { revenue: analytics.totalRevenue, profit: analytics.totalRevenue * profitMargin },
+        year: { revenue: analytics.totalRevenue, profit: analytics.totalRevenue * profitMargin },
+        allTime: { revenue: analytics.totalRevenue, profit: analytics.totalRevenue * profitMargin },
+      };
+
+      const updated = {
+        ...analytics,
+        profitMargin,
+        netProfit: periodTotals.year.revenue * profitMargin,
+        periodTotals: {
+          month: {
+            revenue: periodTotals.month.revenue,
+            profit: Number((periodTotals.month.revenue * profitMargin).toFixed(2)),
+          },
+          year: {
+            revenue: periodTotals.year.revenue,
+            profit: Number((periodTotals.year.revenue * profitMargin).toFixed(2)),
+          },
+          allTime: {
+            revenue: periodTotals.allTime.revenue,
+            profit: Number((periodTotals.allTime.revenue * profitMargin).toFixed(2)),
+          },
+        },
+      };
+
+      await json(route, updated);
+      return;
+    }
+
     await json(route, analytics);
   });
 }

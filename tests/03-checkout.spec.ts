@@ -2,12 +2,12 @@ import { test, expect } from '@playwright/test';
 import { injectFakeCustomerSession, injectCartItems, clearAllSessions } from './helpers/auth';
 
 test.describe('Checkout Page', () => {
-  test('unauthenticated user is redirected to /login', async ({ page }) => {
+  test('unauthenticated user can access checkout', async ({ page }) => {
     await clearAllSessions(page);
+    await injectCartItems(page);
     await page.goto('/checkout');
     
-    await page.waitForURL('**/login**', { timeout: 5000 });
-    expect(page.url()).toContain('/login');
+    await expect(page.locator('text=Finalize Order')).toBeVisible({ timeout: 5000 });
   });
 
   test('authenticated user sees checkout page', async ({ page }) => {
