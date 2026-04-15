@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { clearStorage, mockAdminPageApis, seedAdmin } from './helpers/ui-fixtures';
 
-async function openAdmin(page: Parameters<typeof test>[0]['page'], path = '/admin') {
+async function openAdmin(page: Page, path = '/admin') {
   await clearStorage(page);
   await seedAdmin(page);
   await mockAdminPageApis(page);

@@ -231,6 +231,7 @@ test.describe('Checkout Regression Suite', () => {
         (window as typeof window & { __lastAlert?: string }).__lastAlert = String(message ?? '');
       };
     });
+    await page.getByRole('button', { name: 'Counter' }).click();
     await page.getByRole('button', { name: /Place Order/ }).evaluate((button: HTMLButtonElement) => button.click());
     await page.waitForFunction(() => (window as typeof window & { __lastAlert?: string }).__lastAlert === 'Cart is empty');
   });
@@ -239,6 +240,7 @@ test.describe('Checkout Regression Suite', () => {
     await mockOrderSubmission(page, TRACKING_ORDER);
     await mockLatestOrder(page, TRACKING_ORDER);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
+    await page.getByRole('button', { name: 'Counter' }).click();
     const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
     const dialog = await dialogPromise;
@@ -251,6 +253,7 @@ test.describe('Checkout Regression Suite', () => {
     await mockLatestOrder(page, TRACKING_ORDER);
     await mockFeedback(page, null);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
+    await page.getByRole('button', { name: 'Counter' }).click();
     const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
     const dialog = await dialogPromise;
@@ -263,6 +266,7 @@ test.describe('Checkout Regression Suite', () => {
     await mockLatestOrder(page, TRACKING_ORDER);
     await mockFeedback(page, null);
     await openCheckout(page, { customer: true, cart: TEST_CART, tableId: '7' });
+    await page.getByRole('button', { name: 'Counter' }).click();
     const dialogPromise = page.waitForEvent('dialog');
     await page.getByRole('button', { name: /Place Order/ }).click();
     const dialog = await dialogPromise;

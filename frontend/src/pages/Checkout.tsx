@@ -16,6 +16,15 @@ import { useAuth } from "../context/AuthContext";
 import API from "../lib/api";
 import { getTableId } from "../lib/table";
 
+type RazorpayOrderResponse = {
+  id?: string;
+  order_id?: string;
+  _id?: string;
+  amount?: number;
+  amount_due?: number;
+  total?: number;
+};
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart } = useCart();
@@ -107,12 +116,16 @@ export default function Checkout() {
   // ================= RAZORPAY PAYMENT =================
   const handlePayment = async () => {
     try {
-      const res = await API.post("/payment/create-order", { amount: total });
+      const res = await API.post<RazorpayOrderResponse | { order?: RazorpayOrderResponse }>(
+        "/payment/create-order",
+        { amount: total }
+      );
 
       console.log("create-order response:", res);
 
       // backend may return shape: { order: { id, amount } } or direct order
-      const order = res.data.order || res.data;
+      const payload = res.data as RazorpayOrderResponse | { order?: RazorpayOrderResponse };
+      const order = (payload as { order?: RazorpayOrderResponse }).order ?? (payload as RazorpayOrderResponse);
       if (!order) {
         throw new Error('Invalid order response');
       }
@@ -290,7 +303,7 @@ export default function Checkout() {
               onClick={() => {
                 if (String(paymentMethod).toLowerCase() === "counter") {
                   if (typeof placeOrder === "function") {
-                    placeOrder();
+                    placeOrder(paymentMethod);
                   }
                 } else {
                   if (typeof handlePayment === "function") {
