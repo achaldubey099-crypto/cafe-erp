@@ -20,6 +20,7 @@
   "homepage": "https://github.com/achaldubey099-crypto/cafe-erp#readme",
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "@types/node": "^20.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },

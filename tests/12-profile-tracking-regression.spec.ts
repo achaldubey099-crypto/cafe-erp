@@ -189,7 +189,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
     await page.getByRole('button', { name: 'Logout' }).first().click();
     await page.waitForFunction(() => !localStorage.getItem('customerToken'));
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Login' }).first()).toBeVisible();
   });
 
   test('logged-in profile removes favorites after logout', async ({ page }) => {

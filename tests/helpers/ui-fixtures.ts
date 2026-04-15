@@ -477,12 +477,26 @@ export async function mockFavorites(page: Page, favorites = PROFILE_FAVORITES) {
 
 export async function mockOrders(page: Page, orders = PROFILE_ORDERS) {
   await page.route('**/api/orders**', async (route) => {
-    if (route.request().method() !== 'GET') {
+    const request = route.request();
+
+    if (request.method() === 'PUT') {
+      const payload = request.postDataJSON?.() || {};
+      const orderId = request.url().split('/').pop() || 'order-updated';
+      await json(route, {
+        order: {
+          _id: orderId,
+          status: payload.status || 'pending',
+        },
+      });
+      return;
+    }
+
+    if (request.method() !== 'GET') {
       await route.continue();
       return;
     }
 
-    const url = new URL(route.request().url());
+    const url = new URL(request.url());
     if (url.pathname.endsWith('/orders/latest')) {
       await route.continue();
       return;
@@ -535,6 +549,87 @@ export async function mockOrderSubmission(page: Page, responseOrder = TRACKING_O
       message: 'Order placed successfully',
       order: responseOrder,
     }, 201);
+  });
+}
+
+export async function mockPaymentCreateOrder(
+  page: Page,
+  order = {
+    id: 'order_playwright_1',
+    amount: 117500,
+    currency: 'INR',
+  }
+) {
+  await page.route('**/api/payment/create-order', async (route) => {
+    await json(route, order);
+  });
+}
+
+export async function mockPaymentVerify(
+  page: Page,
+  response: Record<string, unknown> = { success: true },
+  status = 200
+) {
+  await page.route('**/api/payment/verify', async (route) => {
+    await json(route, response, status);
+  });
+}
+
+export async function installMockRazorpay(
+  page: Page,
+  config?: {
+    autoResolve?: boolean;
+    throwOnConstruct?: boolean;
+    response?: {
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+    };
+  }
+) {
+  const mockConfig = config || {};
+  const script = `
+    (() => {
+      const mockConfig = ${JSON.stringify(mockConfig)};
+      const defaultResponse = {
+        razorpay_order_id: 'order_playwright_1',
+        razorpay_payment_id: 'pay_playwright_1',
+        razorpay_signature: 'sig_playwright_1',
+      };
+
+      window.__razorpayOpenCount = 0;
+      window.__razorpayOptionsHistory = [];
+
+      class MockRazorpay {
+        constructor(options) {
+          if (mockConfig.throwOnConstruct) {
+            throw new Error('Mock Razorpay constructor failure');
+          }
+
+          this.options = options;
+          window.__razorpayOptionsHistory.push(options);
+        }
+
+        open() {
+          window.__razorpayOpenCount = (window.__razorpayOpenCount || 0) + 1;
+
+          if (mockConfig.autoResolve && typeof this.options?.handler === 'function') {
+            const response = { ...defaultResponse, ...(mockConfig.response || {}) };
+            setTimeout(() => this.options.handler(response), 0);
+          }
+        }
+      }
+
+      window.Razorpay = MockRazorpay;
+    })();
+  `;
+
+  await page.route('https://checkout.razorpay.com/v1/checkout.js', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: script,
+    });
   });
 }
 

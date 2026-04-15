@@ -376,7 +376,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('analytics page shows total revenue summary', async ({ page }) => {
     await openAdmin(page, '/admin/analytics');
-    await expect(page.getByText('Total Revenue')).toBeVisible();
+    await expect(page.getByText('Total Revenue').first()).toBeVisible();
   });
 
   test('analytics page shows net profit card', async ({ page }) => {
