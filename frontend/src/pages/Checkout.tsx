@@ -131,13 +131,7 @@ export default function Checkout() {
           console.log("Payment Success", response);
 
           try {
-            await fetch("/api/payment/verify", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(response),
-            });
+            await API.post("/payment/verify", response);
           } catch (err) {
             console.error("Payment verify failed:", err);
           }

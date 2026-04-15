@@ -3,8 +3,6 @@ const cors = require('cors');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
-
-// 🔐 AUTH MIDDLEWARE
 const { protectAdmin } = require('./middleware/auth');
 
 const app = express();
@@ -14,10 +12,26 @@ connectDB();
 
 // ================= MIDDLEWARE =================
 
-// ✅ CORS (ALLOW FRONTEND ACCESS)
+// ✅ CORS (FIXED - supports localhost + network)
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://192.168.137.190:3000"
+];
+
 app.use(cors({
-    origin: ["http://localhost:3000", "http://localhost:5173"],
-    credentials: true,
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps, curl)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log("❌ Blocked by CORS:", origin);
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
+    credentials: true
 }));
 
 // ✅ Body Parser
@@ -32,7 +46,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 
-// Payment Routes (Razorpay)
+// Payment Routes
 const paymentRoutes = require('./routes/paymentRoutes');
 
 // Auth & Admin
@@ -40,13 +54,9 @@ const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const adminOrderRoutes = require('./routes/adminOrderRoutes');
 
-// ⭐ STAFF ROUTES
+// Staff / Analytics / Inventory
 const staffRoutes = require('./routes/staffRoutes');
-
-// ⭐ ANALYTICS ROUTES
 const analyticsRoutes = require('./routes/analyticsRoutes');
-
-// ⭐ INVENTORY ROUTES
 const inventoryRoutes = require('./routes/inventoryRoutes');
 
 // ================= API ROUTES =================
@@ -54,7 +64,7 @@ app.use("/api/payment", paymentRoutes);
 
 // ✅ PUBLIC APIs
 app.use('/api/menu', menuRoutes);
-app.use('/api/orders', orderRoutes); // 🔥 IMPORTANT (used by frontend checkout)
+app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/favorites', favoriteRoutes);
@@ -70,7 +80,6 @@ app.use('/api/analytics', protectAdmin, analyticsRoutes);
 app.use('/api/inventory', protectAdmin, inventoryRoutes);
 
 // ================= TEST ROUTE =================
-
 app.get('/', (req, res) => {
     res.send('Cafe ERP Backend Running');
 });
@@ -91,9 +100,8 @@ app.use((err, req, res, next) => {
 });
 
 // ================= SERVER =================
-
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

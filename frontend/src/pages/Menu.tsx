@@ -48,7 +48,14 @@ export default function Menu() {
   useEffect(() => {
   const fetchProducts = async () => {
     try {
+      // 🔍 Debug: log actual API base URL
+      console.log("API BASE URL:", API.defaults.baseURL);
+      console.log("Calling:", `${API.defaults.baseURL}/menu`);
+
       const res = await API.get<Product[]>("/menu");
+
+      console.log("✅ API Response:", res.data);
+
       setProducts(res.data);
 
       // 🔥 Extract unique categories
@@ -56,16 +63,24 @@ export default function Menu() {
         ...new Set(res.data.map((item) => item.category))
       ].sort();
 
-      // 🔥 Add "All" category at top
-      const finalCategories = ["All", ...uniqueCategories];
+      // 🔥 Add "All" category
+      setCategories(["All", ...uniqueCategories]);
 
-      setCategories(finalCategories);
-
-      // 🔥 Set default category
+      // 🔥 Default category
       setActiveCategory("All");
 
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("❌ MENU FETCH ERROR:", err);
+
+      if (err.response) {
+        console.error("Status:", err.response.status);
+        console.error("Data:", err.response.data);
+      } else if (err.request) {
+        console.error("No response received:", err.request);
+      } else {
+        console.error("Error message:", err.message);
+      }
+
       setError("Failed to load menu");
     } finally {
       setLoading(false);
