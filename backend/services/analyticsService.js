@@ -120,22 +120,26 @@ const buildPeriodTotals = (orders, profitMargin) => {
   };
 };
 
-const getStoreSettings = async () => {
-  let settings = await StoreSettings.findOne().lean();
+const getStoreSettings = async (restaurantId) => {
+  if (!restaurantId) {
+    return { profitMargin: DEFAULT_PROFIT_MARGIN };
+  }
+
+  let settings = await StoreSettings.findOne({ restaurantId }).lean();
 
   if (!settings) {
-    settings = await StoreSettings.create({ profitMargin: DEFAULT_PROFIT_MARGIN });
+    settings = await StoreSettings.create({ restaurantId, profitMargin: DEFAULT_PROFIT_MARGIN });
     return settings.toObject();
   }
 
   return settings;
 };
 
-const buildAnalyticsData = async () => {
-  const settings = await getStoreSettings();
+const buildAnalyticsData = async (restaurantId = null) => {
+  const settings = await getStoreSettings(restaurantId);
   const profitMargin =
     typeof settings?.profitMargin === "number" ? settings.profitMargin : DEFAULT_PROFIT_MARGIN;
-  const allOrders = await Order.find().sort({ createdAt: -1 }).lean();
+  const allOrders = await Order.find(restaurantId ? { restaurantId } : {}).sort({ createdAt: -1 }).lean();
   const revenueOrders = allOrders.filter((order) => order.status !== "cancelled");
 
   const today = startOfDay(new Date());

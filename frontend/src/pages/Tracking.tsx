@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star, XCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../lib/api';
-import { getTableId } from '../lib/table';
+import { getOrCreateTenantSessionId, getPublicRestaurantId, getPublicTableId } from '../lib/tenant';
 import { Feedback, Order } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -79,16 +79,16 @@ export default function Tracking() {
   );
 
   useEffect(() => {
-    const tableIdFromQuery = new URLSearchParams(location.search).get('tableId');
-    const boundTableId = tableIdFromQuery || (getTableId() ? String(getTableId()) : '');
-    const boundSessionId = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : '';
+    const boundRestaurantId = getPublicRestaurantId();
+    const boundTableId = getPublicTableId();
+    const boundSessionId = getOrCreateTenantSessionId();
 
     const fetchOrders = async () => {
-      if (!boundTableId) {
+      if (!boundRestaurantId || !boundTableId) {
         setOrders([]);
         setLoading(false);
         setRefreshing(false);
-        setError('Scan your table QR to load your order status');
+        setError('Open a valid restaurant QR link to load your order status');
         return;
       }
 
@@ -99,7 +99,7 @@ export default function Tracking() {
         }
         setError('');
 
-        const params: Record<string, string> = { tableId: boundTableId };
+        const params: Record<string, string> = { activeOnly: 'true' };
         if (boundSessionId) {
           params.sessionId = boundSessionId;
         }
@@ -123,7 +123,7 @@ export default function Tracking() {
 
     const interval = setInterval(fetchOrders, 3000);
     return () => clearInterval(interval);
-  }, [location.search]);
+  }, [location.hash, location.search]);
 
   useEffect(() => {
     if (!orders.length) {

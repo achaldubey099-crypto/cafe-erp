@@ -27,15 +27,17 @@ import Analytics from "./admin/AdminAnalytics";
 import Settings from "./admin/AdminSettings";
 import Orders from "./admin/AdminOrders.tsx";
 import AdminLogin from "./admin/pages/AdminLogin";
+import SuperAdminLogin from "./admin/pages/SuperAdminLogin";
+import SuperAdminRestaurants from "./admin/SuperAdminRestaurants";
 import AdminLayout from "./components/AdminLayout";
-import { syncTableIdFromSearch } from "./lib/table";
+import { syncTenantFromHash } from "./lib/tenant";
 
 function TableSessionBinder() {
   const location = useLocation();
 
   useEffect(() => {
-    syncTableIdFromSearch(location.search);
-  }, [location.search]);
+    syncTenantFromHash(location.hash);
+  }, [location.hash]);
 
   return null;
 }
@@ -43,7 +45,7 @@ function TableSessionBinder() {
 function CustomerBottomNav() {
   const { pathname } = useLocation();
 
-  if (pathname.startsWith("/admin")) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/superadmin")) {
     return null;
   }
 
@@ -67,12 +69,13 @@ export default function App() {
 
           {/* ================= ADMIN LOGIN (FIXED) ================= */}
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/superadmin/login" element={<SuperAdminLogin />} />
 
           {/* ================= ADMIN ================= */}
           <Route
             path="/admin"
             element={
-              <ProtectedRoute role="admin">
+              <ProtectedRoute roles={["owner", "superadmin"]}>
                 <AdminLayout />
               </ProtectedRoute>
             }
@@ -88,6 +91,15 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
           </Route>
+
+          <Route
+            path="/superadmin/restaurants"
+            element={
+              <ProtectedRoute roles={["superadmin"]}>
+                <SuperAdminRestaurants />
+              </ProtectedRoute>
+            }
+          />
 
         </Routes>
 

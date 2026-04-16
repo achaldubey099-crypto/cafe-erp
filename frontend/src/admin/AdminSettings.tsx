@@ -1,97 +1,168 @@
-import React from 'react';
-import { Settings, Bell, Shield, Globe, Moon, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Save } from 'lucide-react';
+import API from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+
+type RestaurantSettings = {
+  brandName: string;
+  logoUrl: string;
+  description: string;
+  publicRestaurantId: string;
+  tables: Array<{ publicTableId: string; label: string; tableNumber: number }>;
+};
 
 export default function AdminSettings() {
+  const { login, user } = useAuth();
+  const [form, setForm] = useState<RestaurantSettings>({
+    brandName: '',
+    logoUrl: '',
+    description: '',
+    publicRestaurantId: '',
+    tables: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await API.get('/admin/restaurant/me');
+        setForm({
+          brandName: res.data.brandName,
+          logoUrl: res.data.logoUrl || '',
+          description: res.data.description || '',
+          publicRestaurantId: res.data.publicRestaurantId,
+          tables: res.data.tables || [],
+        });
+      } catch (err: any) {
+        setError(err?.response?.data?.message || 'Failed to load restaurant settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
+      const res = await API.patch('/admin/restaurant/me', {
+        brandName: form.brandName,
+        logoUrl: form.logoUrl,
+        description: form.description,
+      });
+
+      setForm((prev) => ({
+        ...prev,
+        brandName: res.data.restaurant.brandName,
+        logoUrl: res.data.restaurant.logoUrl || '',
+        description: res.data.restaurant.description || '',
+        publicRestaurantId: res.data.restaurant.publicRestaurantId,
+        tables: res.data.restaurant.tables || prev.tables,
+      }));
+
+      if (user) {
+        login({
+          token: localStorage.getItem('token'),
+          user: {
+            ...user,
+            restaurantName: res.data.restaurant.brandName,
+            restaurantLogo: res.data.restaurant.logoUrl || '',
+          },
+        });
+      }
+      setMessage('Restaurant branding saved.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
       <div>
-        <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tight">Settings</h2>
-        <p className="text-secondary font-medium mt-1">Configure your artisan store preferences and security.</p>
+        <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tight">Restaurant Settings</h2>
+        <p className="text-secondary font-medium mt-1">Change your brand name, logo, and verify the public table access keys used by the QR flow.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Sidebar */}
-        <div className="space-y-1">
-          {[
-            { label: 'General', icon: Settings, active: true },
-            { label: 'Notifications', icon: Bell },
-            { label: 'Security', icon: Shield },
-            { label: 'Localization', icon: Globe },
-            { label: 'Appearance', icon: Moon },
-          ].map((item) => (
-            <button
-              key={item.label}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-                item.active 
-                  ? 'bg-primary text-on-primary shadow-md' 
-                  : 'text-secondary hover:bg-surface-container'
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
+      {error && <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">{error}</div>}
+      {message && <div className="rounded-2xl bg-green-50 border border-green-100 p-4 text-sm text-green-700">{message}</div>}
+
+      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-outline/5 space-y-6">
+        <div className="grid md:grid-cols-[140px_1fr] gap-6 items-start">
+          <img
+            src={form.logoUrl || 'https://placehold.co/200x200/png'}
+            alt={form.brandName || 'Restaurant logo'}
+            className="w-32 h-32 rounded-3xl object-cover bg-surface-container"
+          />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Brand Name</label>
+              <input
+                type="text"
+                value={form.brandName}
+                onChange={(e) => setForm((prev) => ({ ...prev, brandName: e.target.value }))}
+                className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm outline-none"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Logo URL</label>
+              <input
+                type="text"
+                value={form.logoUrl}
+                onChange={(e) => setForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
+                className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm outline-none"
+                disabled={loading}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-outline/5 space-y-6">
-            <h3 className="text-xl font-headline font-bold text-primary">General Preferences</h3>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Store Name</label>
-                <input 
-                  type="text" 
-                  defaultValue="Artisan Coffee House"
-                  className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                />
-              </div>
+        <div className="space-y-2">
+          <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Brand Description</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+            className="w-full min-h-[110px] bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm outline-none"
+            disabled={loading}
+          />
+        </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Store Email</label>
-                <input 
-                  type="email" 
-                  defaultValue="hello@artisan.coffee"
-                  className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                />
-              </div>
+        <div className="rounded-2xl bg-surface-container-low p-5">
+          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Public Restaurant Key</p>
+          <p className="mt-2 font-mono text-sm text-on-surface">{form.publicRestaurantId || 'Loading...'}</p>
+        </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Currency</label>
-                  <select className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none">
-                    <option>USD ($)</option>
-                    <option>EUR (€)</option>
-                    <option>GBP (£)</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Timezone</label>
-                  <select className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none">
-                    <option>UTC-5 (EST)</option>
-                    <option>UTC+0 (GMT)</option>
-                    <option>UTC+1 (CET)</option>
-                  </select>
-                </div>
+        <div className="space-y-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Table Keys for Frontend Hash</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {form.tables.map((table) => (
+              <div key={table.publicTableId} className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3">
+                <p className="font-headline font-bold text-on-surface">{table.label}</p>
+                <p className="text-xs text-secondary">Hash example: `#restaurant={form.publicRestaurantId}&table={table.publicTableId}`</p>
               </div>
-            </div>
-
-            <div className="pt-6 border-t border-outline/5 flex justify-end">
-              <button className="bg-primary text-on-primary px-8 py-4 rounded-2xl font-headline font-bold text-sm shadow-xl shadow-primary/20 flex items-center gap-2 hover:scale-[1.02] transition-transform active:scale-95">
-                <Save size={20} />
-                Save Changes
-              </button>
-            </div>
+            ))}
           </div>
+        </div>
 
-          <div className="bg-red-50 p-8 rounded-[2rem] border border-red-100 space-y-4">
-            <h3 className="text-lg font-headline font-bold text-red-700">Danger Zone</h3>
-            <p className="text-sm text-red-600/80 font-medium">Once you delete a store, there is no going back. Please be certain.</p>
-            <button className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors">
-              Delete Store Data
-            </button>
-          </div>
+        <div className="pt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="bg-primary text-on-primary px-8 py-4 rounded-2xl font-headline font-bold text-sm shadow-xl shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
+          >
+            <Save size={20} />
+            {saving ? 'Saving...' : 'Save Branding'}
+          </button>
         </div>
       </div>
     </div>

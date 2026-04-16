@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Restaurant = require("../models/Restaurant");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
@@ -11,20 +12,25 @@ const generateToken = (user) => {
   return jwt.sign(
     {
       id: user._id,
-      role: user.role
+      role: user.role,
+      restaurantId: user.restaurantId || null,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 };
 
-const serializeUser = (user) => ({
+const serializeUser = (user, restaurant = null) => ({
   _id: user._id,
   id: user._id,
   name: user.name,
   email: user.email,
   role: user.role,
-  avatar: user.avatar || ""
+  avatar: user.avatar || "",
+  restaurantId: restaurant?._id || user.restaurantId || null,
+  restaurantPublicId: restaurant?.publicRestaurantId || null,
+  restaurantName: restaurant?.brandName || "",
+  restaurantLogo: restaurant?.logoUrl || "",
 });
 
 
@@ -96,12 +102,13 @@ const loginUser = async (req, res) => {
     }
 
     // Generate token
+    const restaurant = user.restaurantId ? await Restaurant.findById(user.restaurantId) : null;
     const token = generateToken(user);
 
     // Send response
     res.json({
       token,
-      user: serializeUser(user)
+      user: serializeUser(user, restaurant)
     });
 
   } catch (err) {
@@ -135,8 +142,8 @@ const googleLogin = async (req, res) => {
 
     let user = await User.findOne({ email: payload.email });
 
-    if (user?.role === "admin") {
-      return res.status(403).json({ message: "Use admin login for this account" });
+    if (["owner", "superadmin"].includes(user?.role)) {
+      return res.status(403).json({ message: "Use cafe owner login for this account" });
     }
 
     if (!user) {
@@ -168,9 +175,46 @@ const googleLogin = async (req, res) => {
   }
 };
 
+const loginWithRoles = async (req, res, allowedRoles) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user || !user.password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch || !allowedRoles.includes(user.role)) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const restaurant = user.restaurantId ? await Restaurant.findById(user.restaurantId) : null;
+    const token = generateToken(user);
+
+    return res.json({
+      token,
+      user: serializeUser(user, restaurant),
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+const loginOwner = async (req, res) => loginWithRoles(req, res, ["owner", "superadmin"]);
+const loginSuperadmin = async (req, res) => loginWithRoles(req, res, ["superadmin"]);
+
 
 module.exports = {
   registerUser,
   loginUser,
-  googleLogin
+  googleLogin,
+  loginOwner,
+  loginSuperadmin,
 };

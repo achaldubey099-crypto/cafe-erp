@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const { ensureRestaurantForUser } = require('../utils/restaurantScope');
 
 const PAYMENT_METHOD_MAP = {
     upi: "UPI",
@@ -17,8 +18,12 @@ const normalizePaymentMethod = (value) => {
     return PAYMENT_METHOD_MAP[key] || null;
 };
 
-const buildOrderScopeFilter = ({ tableId, sessionId, userId, activeOnly = false }) => {
+const buildOrderScopeFilter = ({ restaurantId, tableId, sessionId, userId, activeOnly = false }) => {
     const filter = {};
+
+    if (restaurantId) {
+        filter.restaurantId = restaurantId;
+    }
 
     if (userId) {
         filter.userId = userId;
@@ -38,38 +43,24 @@ const buildOrderScopeFilter = ({ tableId, sessionId, userId, activeOnly = false 
     return filter;
 };
 
-const matchesCustomerScope = ({ order, tableId, sessionId, userId }) => {
-    if (userId && order.userId) {
-        return String(order.userId) === String(userId);
-    }
-
-    if (sessionId && order.sessionId) {
-        return order.sessionId === sessionId;
-    }
-
-    if (tableId) {
-        return Number(order.tableId) === Number(tableId);
-    }
-
-    return false;
-};
-
-
 // ================= CREATE ORDER =================
 exports.createOrder = async (req, res) => {
     try {
         const {
-            tableId,
             sessionId,
             items,
             paymentMethod,
             splitBill
         } = req.body;
 
+        const tenantRestaurant = req.tenant?.restaurant;
+        const tenantTable = req.tenant?.table;
+        const resolvedTableId = tenantTable?.tableNumber ?? null;
+
         const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
 
         // 🔴 Validation
-        if (!tableId || !items || items.length === 0) {
+        if (!tenantRestaurant || !tenantTable || !resolvedTableId || !items || items.length === 0) {
             return res.status(400).json({ message: "Invalid order data" });
         }
 
@@ -107,7 +98,9 @@ exports.createOrder = async (req, res) => {
         }
 
         const order = await Order.create({
-            tableId,
+            restaurantId: tenantRestaurant._id,
+            tableRef: tenantTable._id,
+            tableId: resolvedTableId,
             sessionId, // ✅ IMPORTANT (added)
             userId: req.user?.role === "user" ? req.user.id : null,
             items,
@@ -138,9 +131,11 @@ exports.createOrder = async (req, res) => {
 exports.getOrders = async (req, res) => {
     try {
         const { userId } = req.query;
+        const { restaurantId } = await ensureRestaurantForUser(req);
 
         const filter = {};
         if (userId) filter.userId = userId;
+        if (restaurantId) filter.restaurantId = restaurantId;
 
         const orders = await Order.find(filter)
             .sort({ createdAt: -1 }); // ✅ latest first
@@ -157,13 +152,16 @@ exports.getOrders = async (req, res) => {
 exports.getOrdersByTable = async (req, res) => {
     try {
         const { tableId, sessionId, userId, activeOnly } = req.query;
+        const tenantRestaurant = req.tenant?.restaurant;
+        const tenantTable = req.tenant?.table;
 
-        if (!tableId && !sessionId && !userId) {
-            return res.status(400).json({ message: "tableId, sessionId or userId is required" });
+        if (!tenantRestaurant && !tableId && !sessionId && !userId) {
+            return res.status(400).json({ message: "table/restaurant access or scoped identifiers are required" });
         }
 
         const filter = buildOrderScopeFilter({
-            tableId,
+            restaurantId: tenantRestaurant?._id,
+            tableId: tenantTable?.tableNumber ?? tableId,
             sessionId,
             userId,
             activeOnly: String(activeOnly) === "true",
@@ -184,13 +182,16 @@ exports.getOrdersByTable = async (req, res) => {
 exports.getLatestOrderByTable = async (req, res) => {
     try {
         const { tableId, sessionId, userId, activeOnly } = req.query;
+        const tenantRestaurant = req.tenant?.restaurant;
+        const tenantTable = req.tenant?.table;
 
-        if (!tableId && !sessionId && !userId) {
-            return res.status(400).json({ message: "tableId, sessionId or userId is required" });
+        if (!tenantRestaurant && !tableId && !sessionId && !userId) {
+            return res.status(400).json({ message: "table/restaurant access or scoped identifiers are required" });
         }
 
         const filter = buildOrderScopeFilter({
-            tableId,
+            restaurantId: tenantRestaurant?._id,
+            tableId: tenantTable?.tableNumber ?? tableId,
             sessionId,
             userId,
             activeOnly: String(activeOnly) === "true",
@@ -262,13 +263,17 @@ exports.updateOrderStatus = async (req, res) => {
 // ================= PROFILE API =================
 exports.getProfileData = async (req, res) => {
     try {
-        const { tableId } = req.query;
+        const tenantRestaurant = req.tenant?.restaurant;
+        const tenantTable = req.tenant?.table;
 
-        if (!tableId) {
-            return res.status(400).json({ message: "tableId is required" });
+        if (!tenantRestaurant || !tenantTable) {
+            return res.status(400).json({ message: "Restaurant and table access are required" });
         }
 
-        const orders = await Order.find({ tableId });
+        const orders = await Order.find({
+            restaurantId: tenantRestaurant._id,
+            tableId: tenantTable.tableNumber,
+        });
 
         // 💰 Total spent
         const totalSpent = orders.reduce(
@@ -286,8 +291,10 @@ exports.getProfileData = async (req, res) => {
 
         res.json({
             user: {
-                name: "Guest User",
-                tableId
+                name: tenantRestaurant.brandName,
+                tableId: tenantTable.tableNumber,
+                restaurantName: tenantRestaurant.brandName,
+                restaurantLogo: tenantRestaurant.logoUrl || "",
             },
             points,
             totalSpent,
@@ -296,44 +303,6 @@ exports.getProfileData = async (req, res) => {
 
     } catch (error) {
         console.error("❌ Profile Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// ================= DELETE FINALIZED ORDER (CUSTOMER) =================
-exports.deleteOrderForCustomer = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { tableId, sessionId, userId } = req.query;
-
-        const order = await Order.findById(id);
-
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
-
-        if (!["completed", "cancelled"].includes(order.status)) {
-            return res.status(400).json({ message: "Only completed or cancelled orders can be deleted" });
-        }
-
-        const scopedUserId = req.user?.role === "user" ? req.user.id : userId;
-
-        const allowed = matchesCustomerScope({
-            order,
-            tableId,
-            sessionId,
-            userId: scopedUserId,
-        });
-
-        if (!allowed) {
-            return res.status(403).json({ message: "You can only delete your own finished orders" });
-        }
-
-        await order.deleteOne();
-
-        res.json({ message: "Order removed successfully" });
-    } catch (error) {
-        console.error("❌ Delete Order Error:", error);
         res.status(500).json({ message: error.message });
     }
 };

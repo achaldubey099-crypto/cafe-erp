@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const upload = require('../middleware/upload');
+const { optionalProtect, protectAdmin } = require('../middleware/auth');
+const { resolveTenantContext } = require('../middleware/tenant');
 
 const {
+  getPublicMenu,
   getMenu,
   getFeaturedItem,
   createMenuItem,
@@ -19,12 +22,13 @@ const csvUpload = multer({ dest: 'uploads/' });
 // ================= SPECIAL ROUTES =================
 
 // Featured item (must be before /:id)
-router.get('/featured', getFeaturedItem);
+router.get('/featured', optionalProtect, getFeaturedItem);
+router.get('/access', resolveTenantContext, getPublicMenu);
 
 // ================= BULK OPERATIONS =================
 
 // 🔥 Upload CSV (bulk menu upload)
-router.post('/bulk-upload', csvUpload.single('file'), bulkUploadMenu);
+router.post('/bulk-upload', protectAdmin, csvUpload.single('file'), bulkUploadMenu);
 
 // 🔥 Delete all menu items (for testing reset)
 router.delete('/clear', async (req, res) => {
@@ -39,11 +43,11 @@ router.delete('/clear', async (req, res) => {
 // ================= MAIN ROUTES =================
 
 // Get all menu items (with search + filter)
-router.get('/', getMenu);
+router.get('/', optionalProtect, getMenu);
 
 // Create new menu item (with image upload)
-router.post('/', upload.single('imageFile'), createMenuItem);
-router.put('/:id', upload.single('imageFile'), updateMenuItem);
+router.post('/', protectAdmin, upload.single('imageFile'), createMenuItem);
+router.put('/:id', protectAdmin, upload.single('imageFile'), updateMenuItem);
 
 // ================= FUTURE READY =================
 

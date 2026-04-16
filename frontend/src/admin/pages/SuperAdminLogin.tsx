@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../lib/api";
 
-export default function AdminLogin() {
+export default function SuperAdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,41 +15,23 @@ export default function AdminLogin() {
     try {
       setLoading(true);
       setError("");
-
-      const res = await API.post<{ token: string; user: { id: string; name: string; role: "owner" | "superadmin" | "user" } }>("/auth/admin/login", {
-        email,
-        password,
-      });
-
-      // ✅ Save token in localStorage
-      localStorage.setItem("token", res.data.token);
-
-      // ✅ Save user in context
+      const res = await API.post("/auth/superadmin/login", { email, password });
       login(res.data);
-
-      // ✅ Redirect to admin dashboard
-      navigate(res.data.user.role === "superadmin" ? "/superadmin/restaurants" : "/admin");
-
+      navigate("/superadmin/restaurants");
     } catch (err: any) {
-      console.error(err);
-      setError(err.response?.data?.message || "Login failed");
+      setError(err?.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Cafe Owner Login
-        </h1>
+        <h1 className="text-2xl font-bold text-center mb-2">Superadmin Login</h1>
+        <p className="text-center text-secondary mb-6">Manage cafe owners and restaurant access.</p>
 
-        {error && (
-          <p className="text-red-500 text-sm mb-4 text-center">
-            {error}
-          </p>
-        )}
+        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
 
         <input
           type="email"
@@ -59,7 +40,6 @@ export default function AdminLogin() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-
         <input
           type="password"
           placeholder="Password"
@@ -67,19 +47,12 @@ export default function AdminLogin() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-
         <button
           onClick={handleLogin}
           disabled={loading}
           className="w-full bg-primary text-white py-3 rounded-xl disabled:opacity-50"
         >
           {loading ? "Logging in..." : "Login"}
-        </button>
-        <button
-          onClick={() => navigate("/superadmin/login")}
-          className="mt-3 w-full border border-outline/20 text-secondary py-3 rounded-xl"
-        >
-          Superadmin Login
         </button>
       </div>
     </div>

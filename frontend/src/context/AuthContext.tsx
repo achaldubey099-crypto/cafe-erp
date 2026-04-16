@@ -6,7 +6,11 @@ interface User {
   name?: string;
   email?: string;
   avatar?: string;
-  role: "admin" | "user";
+  role: "owner" | "superadmin" | "user";
+  restaurantId?: string | null;
+  restaurantPublicId?: string | null;
+  restaurantName?: string;
+  restaurantLogo?: string;
 }
 
 interface AuthContextType {

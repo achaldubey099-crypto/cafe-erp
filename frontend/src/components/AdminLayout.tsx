@@ -2,8 +2,10 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import { Search, Bell, History } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function AdminLayout() {
+  const { user } = useAuth();
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar />
@@ -31,11 +33,15 @@ export default function AdminLayout() {
             <div className="h-8 w-px bg-outline/10 mx-2"></div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-on-surface leading-none">Store Manager</p>
-                <p className="text-[10px] font-bold text-secondary uppercase tracking-tighter">Admin Access</p>
+                <p className="text-sm font-bold text-on-surface leading-none">
+                  {user?.restaurantName || user?.name || "Cafe Owner"}
+                </p>
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-tighter">
+                  {user?.role === "superadmin" ? "Superadmin Access" : "Owner Access"}
+                </p>
               </div>
               <img 
-                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80" 
+                src={user?.restaurantLogo || user?.avatar || "https://placehold.co/100x100/png"} 
                 alt="Manager" 
                 className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
                 referrerPolicy="no-referrer"

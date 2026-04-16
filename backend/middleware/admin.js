@@ -5,8 +5,8 @@ const adminOnly = (req, res, next) => {
   }
 
   // Check role
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Admin access only" });
+  if (!["owner", "superadmin"].includes(req.user.role)) {
+    return res.status(403).json({ message: "Owner or superadmin access only" });
   }
 
   next();

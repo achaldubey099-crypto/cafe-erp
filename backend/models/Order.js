@@ -2,6 +2,19 @@ const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema(
   {
+    restaurantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Restaurant',
+      required: true,
+      index: true,
+    },
+
+    tableRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Table',
+      default: null,
+    },
+
     tableId: {
       type: Number,
       required: true,
@@ -124,5 +137,6 @@ const orderSchema = new mongoose.Schema(
 // ⚡ INDEXES
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ status: 1 });
+orderSchema.index({ restaurantId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

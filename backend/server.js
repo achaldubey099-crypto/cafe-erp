@@ -57,6 +57,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const adminOrderRoutes = require('./routes/adminOrderRoutes');
+const superadminRoutes = require('./routes/superadminRoutes');
 
 // Staff / Analytics / Inventory
 const staffRoutes = require('./routes/staffRoutes');
@@ -77,6 +78,7 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-orders', adminOrderRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 // 🔐 PROTECTED ADMIN APIs
 app.use('/api/staff', protectAdmin, staffRoutes);

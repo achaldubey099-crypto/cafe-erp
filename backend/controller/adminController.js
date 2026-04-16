@@ -1,11 +1,15 @@
 const Order = require("../models/Order");
+const { ensureRestaurantForUser } = require("../utils/restaurantScope");
 
 // ================= DASHBOARD =================
 const getDashboard = async (req, res) => {
   try {
-    const totalOrders = await Order.countDocuments();
+    const { restaurantId } = await ensureRestaurantForUser(req);
+    const orderFilter = restaurantId ? { restaurantId } : {};
+    const totalOrders = await Order.countDocuments(orderFilter);
 
     const totalSalesResult = await Order.aggregate([
+      ...(restaurantId ? [{ $match: { restaurantId } }] : []),
       {
         $group: {
           _id: null,
@@ -16,7 +20,7 @@ const getDashboard = async (req, res) => {
 
     const totalSales = totalSalesResult[0]?.total || 0;
 
-    const recentOrders = await Order.find()
+    const recentOrders = await Order.find(orderFilter)
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -24,12 +28,14 @@ const getDashboard = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     const todayOrders = await Order.countDocuments({
+      ...orderFilter,
       createdAt: { $gte: today }
     });
 
     const todaySalesResult = await Order.aggregate([
       {
         $match: {
+          ...(restaurantId ? { restaurantId } : {}),
           createdAt: { $gte: today }
         }
       },
@@ -59,6 +65,7 @@ const getDashboard = async (req, res) => {
 // ================= WEEKLY SALES =================
 const getWeeklySales = async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const last7Days = new Date();
     last7Days.setDate(last7Days.getDate() - 6);
     last7Days.setHours(0, 0, 0, 0);
@@ -66,6 +73,7 @@ const getWeeklySales = async (req, res) => {
     const sales = await Order.aggregate([
       {
         $match: {
+          ...(restaurantId ? { restaurantId } : {}),
           createdAt: { $gte: last7Days }
         }
       },
@@ -97,7 +105,9 @@ const getWeeklySales = async (req, res) => {
 // ================= TOP PRODUCTS =================
 const getTopProducts = async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const topProducts = await Order.aggregate([
+      ...(restaurantId ? [{ $match: { restaurantId } }] : []),
       { $unwind: "$items" },
       {
         $group: {
@@ -119,7 +129,9 @@ const getTopProducts = async (req, res) => {
 // ================= GET ACTIVE ORDERS =================
 const getActiveOrders = async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const orders = await Order.find({
+      ...(restaurantId ? { restaurantId } : {}),
       status: { $in: ["pending", "preparing", "ready"] }
     }).sort({ createdAt: -1 });
 
@@ -134,8 +146,10 @@ const getActiveOrders = async (req, res) => {
 const getOrdersByTable = async (req, res) => {
   try {
     const { tableId } = req.params;
+    const { restaurantId } = await ensureRestaurantForUser(req);
 
     const orders = await Order.find({
+      ...(restaurantId ? { restaurantId } : {}),
       tableId,
       status: { $in: ["pending", "preparing", "ready"] }
     }).sort({ createdAt: -1 });
@@ -150,7 +164,9 @@ const getOrdersByTable = async (req, res) => {
 // ================= TABLE STATUS =================
 const getTableStatus = async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const orders = await Order.find({
+      ...(restaurantId ? { restaurantId } : {}),
       status: { $in: ["pending", "preparing", "ready"] }
     });
 
@@ -189,12 +205,22 @@ const getTableStatus = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const { restaurantId } = await ensureRestaurantForUser(req);
 
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (restaurantId && String(order.restaurantId) !== String(restaurantId)) {
+      return res.status(403).json({ message: "Cannot update another restaurant's order" });
+    }
+
+    order.status = status;
+    if (status === "completed") {
+      order.completedAt = new Date();
+    }
+    await order.save();
 
     res.json(order);
 

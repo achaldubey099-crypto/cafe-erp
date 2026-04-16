@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { resolveTenantContext } = require('../middleware/tenant');
 
 const {
     createOrder,
@@ -15,16 +16,16 @@ const { optionalProtect } = require('../middleware/auth');
 // ================= USER ROUTES =================
 
 // Create Order (Checkout)
-router.post('/', optionalProtect, createOrder);
+router.post('/', optionalProtect, resolveTenantContext, createOrder);
 
 // Get Orders by Table
-router.get('/table', getOrdersByTable);
+router.get('/table', resolveTenantContext, getOrdersByTable);
 
 // Get Latest Order (Order Tracking Page)
-router.get('/latest', getLatestOrderByTable);
+router.get('/latest', resolveTenantContext, getLatestOrderByTable);
 
 // Profile Data (if used in user side)
-router.get('/profile', getProfileData);
+router.get('/profile', resolveTenantContext, getProfileData);
 
 
 // ================= ADMIN ROUTES =================

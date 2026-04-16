@@ -11,11 +11,14 @@ const {
   getTableStatus, // ⭐ ADD THIS
   updateOrderStatus
 } = require("../controller/adminController");
+const { getCurrentRestaurant, updateCurrentRestaurant } = require("../controller/restaurantController");
 
 const router = express.Router();
 
 // ================= DASHBOARD =================
 router.get("/dashboard", protect, adminOnly, getDashboard);
+router.get("/restaurant/me", protect, adminOnly, getCurrentRestaurant);
+router.patch("/restaurant/me", protect, adminOnly, updateCurrentRestaurant);
 
 // ================= ANALYTICS =================
 router.get("/weekly-sales", protect, adminOnly, getWeeklySales);

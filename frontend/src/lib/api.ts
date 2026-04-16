@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import axios from "axios";
+import { getPublicRestaurantId, getPublicTableId } from "./tenant";
 
 const envApi = import.meta.env.VITE_API_URL as string | undefined;
 
@@ -21,6 +22,13 @@ API.interceptors.request.use(
       req.headers.Authorization = `Bearer ${token}`;
     }
 
+    if (!adminPath && req.headers) {
+      const restaurant = getPublicRestaurantId();
+      const table = getPublicTableId();
+      if (restaurant) req.headers["x-restaurant-id"] = restaurant;
+      if (table) req.headers["x-table-id"] = table;
+    }
+
     return req;
   },
   (error) => Promise.reject(error)
@@ -35,7 +43,7 @@ API.interceptors.response.use(
       console.warn("Unauthorized - logging out");
 
       const url = error.config?.url || "";
-      const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory)\b/.test(url);
+      const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory|superadmin)\b/.test(url);
 
       if (adminPath) {
         localStorage.removeItem("token");

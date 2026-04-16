@@ -8,7 +8,7 @@ import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { getTableId } from "../lib/table";
+import { getPublicTableId } from "../lib/tenant";
 
 interface FavoriteResponse {
   _id: string;
@@ -39,12 +39,15 @@ export default function Menu() {
   const [error, setError] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [restaurantName, setRestaurantName] = useState("Cafe");
+  const [restaurantLogo, setRestaurantLogo] = useState("");
+  const [tableLabel, setTableLabel] = useState("");
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { customer, logoutCustomer } = useAuth();
   const isLoggedIn = !!customer;
   const [categories, setCategories] = useState([]);
-  const tableId = getTableId();
+  const tableId = getPublicTableId();
 
   // 🔥 Fetch products from backend
   useEffect(() => {
@@ -54,15 +57,23 @@ export default function Menu() {
       console.log("API BASE URL:", API.defaults.baseURL);
       console.log("Calling:", `${API.defaults.baseURL}/menu`);
 
-      const res = await API.get<Product[]>("/menu");
+      const res = await API.get<{
+        restaurant: { brandName: string; logoUrl?: string };
+        table: { label: string };
+        featuredItem?: Product | null;
+        menu: Product[];
+      }>("/menu/access");
 
       console.log("✅ API Response:", res.data);
 
-      setProducts(res.data);
+      setProducts(res.data.menu || []);
+      setRestaurantName(res.data.restaurant?.brandName || "Cafe");
+      setRestaurantLogo(res.data.restaurant?.logoUrl || "");
+      setTableLabel(res.data.table?.label || "");
 
       // 🔥 Extract unique categories
       const uniqueCategories = [
-        ...new Set(res.data.map((item) => item.category))
+        ...new Set((res.data.menu || []).map((item) => item.category))
       ].sort();
 
       // 🔥 Add "All" category
@@ -198,14 +209,17 @@ const filteredProducts = products.filter((p) => {
       {/* Header */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm">
         <div className="flex justify-between items-center px-6 py-4 w-full">
-          <div className="flex flex-col">
+              <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary font-headline tracking-tight">
-              Artisan Café
+              {restaurantName}
             </h1>
             <span className="text-[10px] uppercase tracking-[0.2em] text-secondary font-semibold">
-              Morning Brews
+              {tableLabel || "QR Ordering"}
             </span>
           </div>
+          {restaurantLogo ? (
+            <img src={restaurantLogo} alt={restaurantName} className="w-11 h-11 rounded-2xl object-cover border border-outline/10" />
+          ) : null}
           <div className="flex items-center gap-3">
             <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-95">
               <Bell size={20} className="text-primary" />
@@ -236,7 +250,7 @@ const filteredProducts = products.filter((p) => {
           <section className="px-6 mb-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary">
               <span className="h-2 w-2 rounded-full bg-primary" />
-              Table #{tableId} connected
+              {tableLabel || "Private table access active"}
             </div>
           </section>
         )}

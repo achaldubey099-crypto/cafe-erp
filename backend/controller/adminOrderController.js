@@ -1,14 +1,20 @@
 const Order = require("../models/Order");
+const { ensureRestaurantForUser } = require("../utils/restaurantScope");
 
 
 // ✅ 1. LIVE ORDERS (Queue Management + Filter + Sort)
 const getLiveOrders = async (req, res) => {
   try {
     const { status, sortBy } = req.query;
+    const { restaurantId } = await ensureRestaurantForUser(req);
 
     let filter = {
       status: { $in: ["pending", "preparing", "ready"] },
     };
+
+    if (restaurantId) {
+      filter.restaurantId = restaurantId;
+    }
 
     // 🔍 Optional filter
     if (status) {
@@ -126,19 +132,23 @@ const updateOrderStatus = async (req, res) => {
 // ✅ 3. PAST ORDERS (with pagination support)
 const getPastOrders = async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const page = parseInt(req.query.page) || 1;
     const limit = 10;
 
-    const orders = await Order.find({
+    const historyFilter = {
       status: { $in: ["completed", "cancelled"] },
-    })
+    };
+    if (restaurantId) {
+      historyFilter.restaurantId = restaurantId;
+    }
+
+    const orders = await Order.find(historyFilter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const total = await Order.countDocuments({
-      status: { $in: ["completed", "cancelled"] },
-    });
+    const total = await Order.countDocuments(historyFilter);
 
     res.json({
       page,
@@ -161,9 +171,14 @@ module.exports = {
   deleteOrder: async (req, res) => {
     try {
       const order = await Order.findById(req.params.id);
+      const { restaurantId } = await ensureRestaurantForUser(req);
 
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
+      }
+
+      if (restaurantId && String(order.restaurantId) !== String(restaurantId)) {
+        return res.status(403).json({ message: "Cannot delete orders from another restaurant" });
       }
 
       await order.deleteOne();

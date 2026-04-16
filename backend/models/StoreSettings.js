@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const storeSettingsSchema = new mongoose.Schema(
   {
+    restaurantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      required: true,
+      unique: true,
+      index: true,
+    },
     profitMargin: {
       type: Number,
       default: 0.4,

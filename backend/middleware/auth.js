@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 
+const ADMIN_ROLES = ["owner", "superadmin"];
+
 // 🔐 COMMON TOKEN VERIFIER (internal use)
 const verifyToken = (req) => {
   const authHeader = req.headers.authorization;
@@ -47,13 +49,12 @@ const protectAdmin = (req, res, next) => {
     return res.status(401).json({ message: "Not authorized, invalid or missing token" });
   }
 
-  if (decoded.role !== "admin") {
-    return res.status(403).json({ message: "Access denied, admin only" });
+  if (!ADMIN_ROLES.includes(decoded.role)) {
+    return res.status(403).json({ message: "Access denied, owner or superadmin only" });
   }
 
   req.user = decoded;
   next();
 };
 
-
-module.exports = { protect, optionalProtect, protectAdmin };
+module.exports = { protect, optionalProtect, protectAdmin, ADMIN_ROLES };

@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminSidebar() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
 
   const navItems = [
@@ -31,8 +31,12 @@ export default function AdminSidebar() {
   return (
     <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low flex flex-col py-8 px-4 z-50 border-r border-outline/10">
       <div className="mb-10 px-4">
-        <h1 className="text-xl font-bold text-primary font-headline tracking-tight">Artisan Admin</h1>
-        <p className="text-[10px] uppercase tracking-widest text-secondary font-bold">The Digital Concierge</p>
+        <h1 className="text-xl font-bold text-primary font-headline tracking-tight">
+          {user?.restaurantName || "Cafe Owner Panel"}
+        </h1>
+        <p className="text-[10px] uppercase tracking-widest text-secondary font-bold">
+          {user?.role === "superadmin" ? "Platform Control" : "Restaurant Workspace"}
+        </p>
       </div>
 
       <nav className="flex-1 space-y-1">

@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import API from "../lib/api";
-import { getTableId } from "../lib/table";
+import { getOrCreateTenantSessionId, getPublicRestaurantId, getPublicTableId } from "../lib/tenant";
 
 type RazorpayOrderResponse = {
   id?: string;
@@ -46,24 +46,17 @@ export default function Checkout() {
   const [notice, setNotice] = useState<CheckoutNotice | null>(null);
 
   // ✅ GET TABLE
-  const tableId = getTableId();
+  const tableId = getPublicTableId();
+  const restaurantId = getPublicRestaurantId();
 
   // ✅ CREATE SESSION (ONLY ONCE)
   useEffect(() => {
-    if (!tableId) {
+    if (!tableId || !restaurantId) {
       setSessionId("");
       return;
     }
-
-    let existingSession = localStorage.getItem("sessionId");
-
-    if (!existingSession) {
-      existingSession = Date.now() + "_" + tableId;
-      localStorage.setItem("sessionId", existingSession);
-    }
-
-    setSessionId(existingSession || "");
-  }, [tableId]);
+    setSessionId(getOrCreateTenantSessionId());
+  }, [restaurantId, tableId]);
 
   // 🔥 CALCULATIONS
   const subtotal = cart.reduce(
@@ -91,11 +84,11 @@ export default function Checkout() {
   const placeOrder = async (paymentMethod: string) => {
     try {
       // ❌ VALIDATION
-      if (!tableId) {
+      if (!tableId || !restaurantId) {
         showNotice({
           kind: "error",
-          title: "Table Not Found",
-          message: "Please scan your table QR code before placing an order.",
+          title: "Restaurant Access Missing",
+          message: "Please open the menu from a valid restaurant QR link before placing an order.",
           actionLabel: "Got It",
         });
         return;
@@ -113,7 +106,6 @@ export default function Checkout() {
       }
 
       const orderData = {
-        tableId,
         sessionId,
         userId: customer?._id,
         items: cart.map((item, index) => ({
@@ -139,9 +131,9 @@ export default function Checkout() {
       showNotice({
         kind: "success",
         title: "Order Confirmed",
-        message: `Your order for Table #${tableId} has been sent to the kitchen.`,
+        message: `Your order has been sent to the kitchen for this table.`,
         actionLabel: "Track Order",
-        onClose: () => navigate(`/orders?tableId=${tableId}`),
+        onClose: () => navigate(`/orders`),
       });
 
     } catch (err: any) {
