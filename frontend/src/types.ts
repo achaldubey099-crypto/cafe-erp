@@ -29,6 +29,8 @@ export interface OrderItem {
 export interface Order {
   _id: string;
   createdAt: string;
+  completedAt?: string | null;
+  sessionId?: string;
 
   items: OrderItem[];
 

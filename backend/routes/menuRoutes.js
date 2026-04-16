@@ -7,6 +7,7 @@ const {
   getMenu,
   getFeaturedItem,
   createMenuItem,
+  updateMenuItem,
   bulkUploadMenu // 🔥 NEW (make sure you export this)
 } = require('../controller/menuController');
 
@@ -42,6 +43,7 @@ router.get('/', getMenu);
 
 // Create new menu item (with image upload)
 router.post('/', upload.single('imageFile'), createMenuItem);
+router.put('/:id', upload.single('imageFile'), updateMenuItem);
 
 // ================= FUTURE READY =================
 

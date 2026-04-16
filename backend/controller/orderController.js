@@ -6,6 +6,8 @@ const PAYMENT_METHOD_MAP = {
     counter: "Counter",
 };
 
+const ACTIVE_STATUSES = ["pending", "preparing", "ready"];
+
 const normalizePaymentMethod = (value) => {
     if (!value) {
         return "UPI";
@@ -13,6 +15,43 @@ const normalizePaymentMethod = (value) => {
 
     const key = String(value).trim().toLowerCase();
     return PAYMENT_METHOD_MAP[key] || null;
+};
+
+const buildOrderScopeFilter = ({ tableId, sessionId, userId, activeOnly = false }) => {
+    const filter = {};
+
+    if (userId) {
+        filter.userId = userId;
+    } else if (sessionId) {
+        filter.sessionId = sessionId;
+        if (tableId) {
+            filter.tableId = Number(tableId);
+        }
+    } else if (tableId) {
+        filter.tableId = Number(tableId);
+    }
+
+    if (activeOnly) {
+        filter.status = { $in: ACTIVE_STATUSES };
+    }
+
+    return filter;
+};
+
+const matchesCustomerScope = ({ order, tableId, sessionId, userId }) => {
+    if (userId && order.userId) {
+        return String(order.userId) === String(userId);
+    }
+
+    if (sessionId && order.sessionId) {
+        return order.sessionId === sessionId;
+    }
+
+    if (tableId) {
+        return Number(order.tableId) === Number(tableId);
+    }
+
+    return false;
 };
 
 
@@ -117,13 +156,20 @@ exports.getOrders = async (req, res) => {
 // ================= GET ORDERS BY TABLE =================
 exports.getOrdersByTable = async (req, res) => {
     try {
-        const { tableId } = req.query;
+        const { tableId, sessionId, userId, activeOnly } = req.query;
 
-        if (!tableId) {
-            return res.status(400).json({ message: "tableId is required" });
+        if (!tableId && !sessionId && !userId) {
+            return res.status(400).json({ message: "tableId, sessionId or userId is required" });
         }
 
-        const orders = await Order.find({ tableId })
+        const filter = buildOrderScopeFilter({
+            tableId,
+            sessionId,
+            userId,
+            activeOnly: String(activeOnly) === "true",
+        });
+
+        const orders = await Order.find(filter)
             .sort({ createdAt: -1 });
 
         res.json(orders);
@@ -137,13 +183,20 @@ exports.getOrdersByTable = async (req, res) => {
 // ================= GET LATEST ORDER =================
 exports.getLatestOrderByTable = async (req, res) => {
     try {
-        const { tableId } = req.query;
+        const { tableId, sessionId, userId, activeOnly } = req.query;
 
-        if (!tableId) {
-            return res.status(400).json({ message: "tableId is required" });
+        if (!tableId && !sessionId && !userId) {
+            return res.status(400).json({ message: "tableId, sessionId or userId is required" });
         }
 
-        const order = await Order.findOne({ tableId })
+        const filter = buildOrderScopeFilter({
+            tableId,
+            sessionId,
+            userId,
+            activeOnly: String(activeOnly) === "true",
+        });
+
+        const order = await Order.findOne(filter)
             .sort({ createdAt: -1 });
 
         if (!order) {
@@ -174,11 +227,21 @@ exports.updateOrderStatus = async (req, res) => {
             return res.status(400).json({ message: "Invalid status" });
         }
 
-        const order = await Order.findByIdAndUpdate(
-            id,
-            { status },
-            { new: true }
-        );
+        const update = { status };
+
+        if (status === "preparing") {
+            update.startedAt = new Date();
+        }
+
+        if (status === "completed") {
+            update.completedAt = new Date();
+        }
+
+        if (status === "cancelled") {
+            update.completedAt = null;
+        }
+
+        const order = await Order.findByIdAndUpdate(id, update, { new: true });
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
@@ -233,6 +296,44 @@ exports.getProfileData = async (req, res) => {
 
     } catch (error) {
         console.error("❌ Profile Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ================= DELETE FINALIZED ORDER (CUSTOMER) =================
+exports.deleteOrderForCustomer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tableId, sessionId, userId } = req.query;
+
+        const order = await Order.findById(id);
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        if (!["completed", "cancelled"].includes(order.status)) {
+            return res.status(400).json({ message: "Only completed or cancelled orders can be deleted" });
+        }
+
+        const scopedUserId = req.user?.role === "user" ? req.user.id : userId;
+
+        const allowed = matchesCustomerScope({
+            order,
+            tableId,
+            sessionId,
+            userId: scopedUserId,
+        });
+
+        if (!allowed) {
+            return res.status(403).json({ message: "You can only delete your own finished orders" });
+        }
+
+        await order.deleteOne();
+
+        res.json({ message: "Order removed successfully" });
+    } catch (error) {
+        console.error("❌ Delete Order Error:", error);
         res.status(500).json({ message: error.message });
     }
 };

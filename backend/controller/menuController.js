@@ -111,6 +111,47 @@ exports.createMenuItem = async (req, res) => {
   }
 };
 
+// ================= UPDATE MENU ITEM =================
+exports.updateMenuItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, price, category, image, isFeatured } = req.body;
+
+    const item = await Menu.findById(id);
+
+    if (!item) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    let uploadedImage = null;
+
+    if (req.file) {
+      uploadedImage = await uploadImageToCloudinary(req.file.buffer);
+    }
+
+    item.name = name?.trim() || item.name;
+    item.category = category?.trim() || item.category;
+    item.price = price !== undefined && price !== "" ? Number(price) : item.price;
+    item.isFeatured = isFeatured !== undefined ? String(isFeatured) === "true" : item.isFeatured;
+
+    if (uploadedImage?.secure_url) {
+      item.image = uploadedImage.secure_url;
+      item.imagePublicId = uploadedImage.public_id || "";
+    } else if (image) {
+      item.image = image;
+    }
+
+    await item.save();
+
+    res.json({
+      message: "Menu item updated successfully",
+      item
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // ================= 🔥 BULK UPLOAD MENU =================
 exports.bulkUploadMenu = async (req, res) => {
   try {

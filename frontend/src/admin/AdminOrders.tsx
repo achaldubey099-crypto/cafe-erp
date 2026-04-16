@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 
 import API from "../lib/api";
@@ -33,7 +34,7 @@ interface AdminOrder {
 }
 
 // Prioritize the 3-stage pipeline for order processing
-const FILTERS: Array<"all" | OrderStatus> = ["pending", "preparing", "ready", "completed", "cancelled"];
+const FILTERS: Array<"all" | OrderStatus> = ["all", "pending", "preparing", "ready", "completed", "cancelled"];
 const UPDATABLE_STATUSES: UpdatableStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 
 const toTitle = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
@@ -127,6 +128,17 @@ export default function AdminOrders() {
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || "Failed to update order status");
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      setError("");
+      await API.delete(`/admin-orders/${orderId}`);
+      setOrders((prev) => prev.filter((order) => order._id !== orderId));
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || "Failed to delete order");
     }
   };
 
@@ -296,19 +308,43 @@ export default function AdminOrders() {
                     </td>
                     <td className="px-6 py-4">
                       {canUpdate ? (
-                        <select
-                          value={order.status}
-                          onChange={(e) => handleStatusUpdate(order._id, e.target.value as UpdatableStatus)}
-                          className="text-xs bg-surface-container-low border border-outline/10 rounded-lg px-2 py-1 outline-none"
-                        >
-                          {UPDATABLE_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {toTitle(status)}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={order.status}
+                            onChange={(e) => handleStatusUpdate(order._id, e.target.value as UpdatableStatus)}
+                            className="text-xs bg-surface-container-low border border-outline/10 rounded-lg px-2 py-1 outline-none"
+                          >
+                            {UPDATABLE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {toTitle(status)}
+                              </option>
+                            ))}
+                          </select>
+                          {(order.status === "completed" || order.status === "cancelled") && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOrder(order._id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                              aria-label="Delete order"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       ) : (
-                        <span className="text-xs font-bold text-secondary uppercase tracking-wide">Locked</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-secondary uppercase tracking-wide">Locked</span>
+                          {(order.status === "completed" || order.status === "cancelled") && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOrder(order._id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                              aria-label="Delete order"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

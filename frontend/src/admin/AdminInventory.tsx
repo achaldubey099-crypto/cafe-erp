@@ -10,6 +10,7 @@ interface CreateMenuResponse {
 
 export default function AdminInventory() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,11 +46,30 @@ export default function AdminInventory() {
     setForm({ name: '', price: '', category: 'Coffee', isFeatured: false });
     setImageFile(null);
     setImagePreview('');
+    setEditingId(null);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product: Product) => {
+    setEditingId(product._id);
+    setForm({
+      name: product.name,
+      price: String(product.price),
+      category: product.category,
+      isFeatured: !!product.isFeatured,
+    });
+    setImageFile(null);
+    setImagePreview(product.image || '');
+    setIsModalOpen(true);
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +78,7 @@ export default function AdminInventory() {
     setImagePreview(file ? URL.createObjectURL(file) : '');
   };
 
-  const handleCreateMenuItem = async (event: React.FormEvent) => {
+  const handleSaveMenuItem = async (event: React.FormEvent) => {
     event.preventDefault();
 
     try {
@@ -75,9 +95,15 @@ export default function AdminInventory() {
         body.append('imageFile', imageFile);
       }
 
-      const res = await API.post<CreateMenuResponse>('/menu', body);
+      const res = editingId
+        ? await API.put<CreateMenuResponse>(`/menu/${editingId}`, body)
+        : await API.post<CreateMenuResponse>('/menu', body);
 
-      setProducts((prev) => [res.data.item, ...prev]);
+      setProducts((prev) => (
+        editingId
+          ? prev.map((item) => (item._id === editingId ? res.data.item : item))
+          : [res.data.item, ...prev]
+      ));
       closeModal();
     } catch (err: any) {
       console.error(err);
@@ -101,7 +127,7 @@ export default function AdminInventory() {
           <p className="text-on-surface-variant mt-1 font-medium">Keep track of your artisan supplies and café essentials.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="bg-primary text-on-primary px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:opacity-90 transition-all active:scale-95"
         >
           <Plus size={20} />
@@ -210,8 +236,18 @@ export default function AdminInventory() {
                   </td>
                   <td className="py-4 px-8 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="text-[10px] font-bold text-primary hover:underline px-2 py-1">Update</button>
-                      <button className="p-2 rounded-lg text-secondary hover:bg-surface-container hover:text-primary transition-all">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(product)}
+                        className="text-[10px] font-bold text-primary hover:underline px-2 py-1"
+                      >
+                        Update
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(product)}
+                        className="p-2 rounded-lg text-secondary hover:bg-surface-container hover:text-primary transition-all"
+                      >
                         <Edit2 size={16} />
                       </button>
                     </div>
@@ -235,8 +271,12 @@ export default function AdminInventory() {
             <div className="p-8">
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <h3 className="text-2xl font-headline font-extrabold text-primary">Add New Item</h3>
-                  <p className="text-secondary text-sm font-medium">Enter the details for the new inventory item.</p>
+                  <h3 className="text-2xl font-headline font-extrabold text-primary">
+                    {editingId ? 'Update Menu Item' : 'Add New Item'}
+                  </h3>
+                  <p className="text-secondary text-sm font-medium">
+                    {editingId ? 'Update the menu item details for your cafe.' : 'Enter the details for the new inventory item.'}
+                  </p>
                 </div>
                 <button 
                   onClick={closeModal}
@@ -246,7 +286,7 @@ export default function AdminInventory() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateMenuItem} className="space-y-6">
+              <form onSubmit={handleSaveMenuItem} className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Menu Item Name</label>
                   <input 
@@ -328,7 +368,7 @@ export default function AdminInventory() {
                     disabled={saving}
                     className="flex-[2] py-4 bg-primary text-on-primary rounded-2xl font-headline font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-60"
                   >
-                    {saving ? 'Saving...' : 'Save Item'}
+                    {saving ? 'Saving...' : editingId ? 'Update Item' : 'Save Item'}
                   </button>
                 </div>
               </form>
