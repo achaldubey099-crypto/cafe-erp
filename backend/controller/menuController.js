@@ -1,8 +1,12 @@
 const Menu = require("../models/Menu");
+const Table = require("../models/Table");
 const cloudinary = require("../config/cloudinary");
 const csvParser = require("csv-parser");
 const fs = require("fs");
+const { syncRestaurantAccessKey } = require("../utils/accessKeys");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
+const { getTableSlug } = require("../utils/tableSlug");
+const { ensureRestaurantTables } = require("../utils/ensureRestaurantTables");
 
 const uploadImageToCloudinary = (fileBuffer) =>
   new Promise((resolve, reject) => {
@@ -63,16 +67,66 @@ exports.getPublicMenu = async (req, res) => {
       restaurant: {
         brandName: restaurant.brandName,
         logoUrl: restaurant.logoUrl || "",
+        slug: restaurant.slug || "",
+        accessKey: restaurant.accessKey || "",
         publicRestaurantId: restaurant.publicRestaurantId,
         description: restaurant.description || "",
       },
       table: {
         label: table.label,
         tableNumber: table.tableNumber,
+        accessKey: table.accessKey || "",
+        slug: req.tenant?.tableSlug || "",
         publicTableId: table.publicTableId,
       },
       featuredItem,
       menu,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getPublicRestaurantEntry = async (req, res) => {
+  try {
+    const restaurant = req.tenant?.restaurant;
+
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    await syncRestaurantAccessKey(restaurant);
+    const tables = (await ensureRestaurantTables({ restaurantId: restaurant._id }))
+      .map((table) => table.toObject ? table.toObject() : table)
+      .filter((table) => table.active !== false);
+
+    const firstTable = tables[0] || null;
+
+    res.json({
+      restaurant: {
+        brandName: restaurant.brandName,
+        slug: restaurant.slug || "",
+        accessKey: restaurant.accessKey || "",
+        logoUrl: restaurant.logoUrl || "",
+      },
+      firstTable: firstTable
+        ? {
+            label: firstTable.label,
+            tableNumber: firstTable.tableNumber,
+            accessKey: firstTable.accessKey || "",
+            slug: getTableSlug(firstTable),
+            publicTableId: firstTable.publicTableId,
+            url: `/access/${firstTable.accessKey}`,
+          }
+        : null,
+      tables: tables.map((table) => ({
+        label: table.label,
+        tableNumber: table.tableNumber,
+        accessKey: table.accessKey || "",
+        slug: getTableSlug(table),
+        publicTableId: table.publicTableId,
+        url: `/access/${table.accessKey}`,
+      })),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -191,9 +245,31 @@ exports.updateMenuItem = async (req, res) => {
   }
 };
 
+exports.deleteMenuItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId } = await ensureRestaurantForUser(req);
+
+    if (!restaurantId) {
+      return res.status(400).json({ message: "Restaurant context is required" });
+    }
+
+    const item = await Menu.findOneAndDelete({ _id: id, restaurantId });
+
+    if (!item) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    res.json({ message: "Menu item deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.bulkUploadMenu = async (req, res) => {
   try {
     const { restaurantId } = await ensureRestaurantForUser(req);
+    const cafeId = req.cafeId || null;
     if (!restaurantId) {
       return res.status(400).json({ message: "Restaurant context is required" });
     }
@@ -204,19 +280,36 @@ exports.bulkUploadMenu = async (req, res) => {
 
     const results = [];
 
+    const cleanupUploadedFile = () => {
+      if (req.file?.path) {
+        fs.unlink(req.file.path, () => {});
+      }
+    };
+
     fs.createReadStream(req.file.path)
       .pipe(csvParser())
       .on("data", (data) => {
+        const imageUrl =
+          data.image?.trim() ||
+          data.imageUrl?.trim() ||
+          data.imageURL?.trim() ||
+          data.image_url?.trim() ||
+          "";
+        const featuredValue = String(data.isFeatured ?? data.featured ?? "").trim().toLowerCase();
+        const parsedPrice = Number(data.price);
+        const itemName = data.name?.trim();
+        const placeholderText = encodeURIComponent(itemName || data.category?.trim() || "Menu Item");
         const cleanedItem = {
           restaurantId,
-          name: data.name?.trim(),
-          price: Number(data.price),
+          cafeId,
+          name: itemName,
+          price: parsedPrice,
           category: data.category?.trim(),
-          image: data.image || `https://picsum.photos/400?random=${Math.floor(Math.random() * 10000)}`,
-          isFeatured: false,
+          image: imageUrl || `https://placehold.co/400x400/F5F1E8/2D2418/png?text=${placeholderText}`,
+          isFeatured: ["true", "1", "yes"].includes(featuredValue),
         };
 
-        if (!cleanedItem.name || !cleanedItem.price || !cleanedItem.category) {
+        if (!cleanedItem.name || !Number.isFinite(cleanedItem.price) || !cleanedItem.category) {
           return;
         }
 
@@ -225,10 +318,16 @@ exports.bulkUploadMenu = async (req, res) => {
       .on("end", async () => {
         try {
           await Menu.insertMany(results);
+          cleanupUploadedFile();
           res.json({ message: "Menu uploaded successfully", count: results.length });
         } catch (err) {
+          cleanupUploadedFile();
           res.status(500).json({ message: err.message });
         }
+      })
+      .on("error", (err) => {
+        cleanupUploadedFile();
+        res.status(500).json({ message: err.message });
       });
   } catch (error) {
     res.status(500).json({ message: error.message });

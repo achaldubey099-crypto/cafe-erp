@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 import axios from "axios";
-import { getPublicRestaurantId, getPublicTableId } from "./tenant";
+import {
+  getPublicRestaurantId,
+  getPublicTableId,
+  getRestaurantAccessKey,
+  getRestaurantSlug,
+  getTableAccessKey,
+  getTableSlug,
+} from "./tenant";
 
 const envApi = import.meta.env.VITE_API_URL as string | undefined;
 
@@ -13,7 +20,7 @@ const API = axios.create({
 API.interceptors.request.use(
   (req: any) => {
     const url = req.url || "";
-    const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory)\b/.test(url);
+    const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory|superadmin)\b/.test(url);
     const token = adminPath
       ? localStorage.getItem("token")
       : localStorage.getItem("customerToken") || localStorage.getItem("token");
@@ -23,8 +30,16 @@ API.interceptors.request.use(
     }
 
     if (!adminPath && req.headers) {
+      const restaurantAccessKey = getRestaurantAccessKey();
+      const tableAccessKey = getTableAccessKey();
+      const restaurantSlug = getRestaurantSlug();
+      const tableSlug = getTableSlug();
       const restaurant = getPublicRestaurantId();
       const table = getPublicTableId();
+      if (restaurantAccessKey) req.headers["x-restaurant-access-key"] = restaurantAccessKey;
+      if (tableAccessKey) req.headers["x-table-access-key"] = tableAccessKey;
+      if (restaurantSlug) req.headers["x-restaurant-slug"] = restaurantSlug;
+      if (tableSlug) req.headers["x-table-slug"] = tableSlug;
       if (restaurant) req.headers["x-restaurant-id"] = restaurant;
       if (table) req.headers["x-table-id"] = table;
     }

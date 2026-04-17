@@ -7,10 +7,12 @@ const { resolveTenantContext } = require('../middleware/tenant');
 
 const {
   getPublicMenu,
+  getPublicRestaurantEntry,
   getMenu,
   getFeaturedItem,
   createMenuItem,
   updateMenuItem,
+  deleteMenuItem,
   bulkUploadMenu // 🔥 NEW (make sure you export this)
 } = require('../controller/menuController');
 
@@ -23,6 +25,7 @@ const csvUpload = multer({ dest: 'uploads/' });
 
 // Featured item (must be before /:id)
 router.get('/featured', optionalProtect, getFeaturedItem);
+router.get('/entry', resolveTenantContext, getPublicRestaurantEntry);
 router.get('/access', resolveTenantContext, getPublicMenu);
 
 // ================= BULK OPERATIONS =================
@@ -48,6 +51,7 @@ router.get('/', optionalProtect, getMenu);
 // Create new menu item (with image upload)
 router.post('/', protectAdmin, upload.single('imageFile'), createMenuItem);
 router.put('/:id', protectAdmin, upload.single('imageFile'), updateMenuItem);
+router.delete('/:id', protectAdmin, deleteMenuItem);
 
 // ================= FUTURE READY =================
 

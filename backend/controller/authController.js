@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const ADMIN_ROLES = ["admin", "owner", "superadmin"];
 
 
 // 🔐 GENERATE TOKEN (helper)
@@ -27,6 +28,7 @@ const serializeUser = (user, restaurant = null) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  status: user.status || "active",
   avatar: user.avatar || "",
   cafeId: user.cafeId || restaurant?._id || user.restaurantId || null,
   cafePublicId: restaurant?.publicRestaurantId || null,
@@ -38,7 +40,7 @@ const serializeUser = (user, restaurant = null) => ({
 // ================= REGISTER =================
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role, cafeId } = req.body;
 
     // Validation
     if (!name || !email || !password) {
@@ -59,13 +61,24 @@ const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: "user",
-      authProvider: "local"
+      role: role || "user",
+      cafeId: cafeId || null,
+      status: "active",
+      authProvider: "local",
     });
 
+    const token = generateToken(user);
+
     res.status(201).json({
-      message: "User registered successfully",
-      userId: user._id
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        cafeId: user.cafeId,
+        status: user.status,
+      },
     });
 
   } catch (err) {
@@ -89,6 +102,10 @@ const loginUser = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.status === "suspended") {
+      return res.status(403).json({ message: "Account suspended. Please contact the platform administrator." });
     }
 
     // Compare password
@@ -143,8 +160,12 @@ const googleLogin = async (req, res) => {
 
     let user = await User.findOne({ email: payload.email });
 
-    if (["owner", "superadmin"].includes(user?.role)) {
-      return res.status(403).json({ message: "Use cafe owner login for this account" });
+    if (ADMIN_ROLES.includes(user?.role)) {
+      return res.status(403).json({ message: "Use cafe admin login for this account" });
+    }
+
+    if (user?.status === "suspended") {
+      return res.status(403).json({ message: "Account suspended. Please contact the platform administrator." });
     }
 
     if (!user) {
@@ -154,6 +175,7 @@ const googleLogin = async (req, res) => {
         googleId: payload.sub,
         avatar: payload.picture || "",
         role: "user",
+        status: "active",
         authProvider: "google",
       });
     } else {
@@ -190,6 +212,10 @@ const loginWithRoles = async (req, res, allowedRoles) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    if (user.status === "suspended") {
+      return res.status(403).json({ message: "Account suspended. Please contact the platform administrator." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch || !allowedRoles.includes(user.role)) {
@@ -208,7 +234,7 @@ const loginWithRoles = async (req, res, allowedRoles) => {
   }
 };
 
-const loginOwner = async (req, res) => loginWithRoles(req, res, ["owner", "superadmin"]);
+const loginOwner = async (req, res) => loginWithRoles(req, res, ADMIN_ROLES);
 const loginSuperadmin = async (req, res) => loginWithRoles(req, res, ["superadmin"]);
 
 

@@ -40,7 +40,7 @@ test.describe('Admin Route Protection', () => {
     await expect(page.locator('text=Admin Login')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
-    await expect(page.locator('button', { hasText: 'Login' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
   });
 
   test('invalid admin credentials show error', async ({ page }) => {

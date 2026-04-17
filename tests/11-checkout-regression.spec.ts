@@ -213,9 +213,10 @@ test.describe('Checkout Regression Suite', () => {
     await clearStorage(page);
     await seedCustomer(page);
     await seedCart(page, TEST_CART);
-    await page.goto('/checkout?tableId=9');
-    const tableId = await page.evaluate(() => localStorage.getItem('tableId'));
-    expect(tableId).toBe('9');
+    await seedTable(page, '9');
+    await page.goto('/checkout');
+    const tableAccessKey = await page.evaluate(() => localStorage.getItem('tableAccessKey'));
+    expect(tableAccessKey).toContain('9');
   });
 
   test('empty authenticated cart still shows checkout screen', async ({ page }) => {
@@ -248,7 +249,7 @@ test.describe('Checkout Regression Suite', () => {
     await page.getByRole('button', { name: 'Counter' }).click();
     await page.getByRole('button', { name: /Place Order/ }).click();
     await page.getByRole('button', { name: 'Track Order' }).click();
-    await expect(page).toHaveURL(/\/orders\?tableId=7/);
+    await expect(page).toHaveURL(/\/orders$/);
   });
 
   test('successful order placement clears cart storage', async ({ page }) => {

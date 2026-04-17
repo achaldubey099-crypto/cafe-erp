@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function AdminLayout() {
   const { user } = useAuth();
+  const isSuperadmin = user?.role === "superadmin";
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar />
@@ -34,10 +35,10 @@ export default function AdminLayout() {
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-on-surface leading-none">
-                  {user?.restaurantName || user?.name || "Cafe Owner"}
+                  {user?.restaurantName || user?.name || (isSuperadmin ? "Platform Superadmin" : "Cafe Owner")}
                 </p>
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-tighter">
-                  {user?.role === "superadmin" ? "Superadmin Access" : "Owner Access"}
+                  {isSuperadmin ? "Superadmin Access" : user?.role === "admin" ? "Admin Access" : "Owner Access"}
                 </p>
               </div>
               <img 

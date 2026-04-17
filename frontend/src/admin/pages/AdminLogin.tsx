@@ -17,7 +17,7 @@ export default function AdminLogin() {
       setLoading(true);
       setError("");
 
-      const res = await API.post<{ token: string; user: { id: string; name: string; role: "owner" | "superadmin" | "user" } }>("/auth/admin/login", {
+      const res = await API.post<{ token: string; user: { id: string; name: string; role: "admin" | "owner" | "superadmin" | "user" } }>("/auth/admin/login", {
         email,
         password,
       });
@@ -29,7 +29,7 @@ export default function AdminLogin() {
       login(res.data);
 
       // ✅ Redirect to admin dashboard
-      navigate(res.data.user.role === "superadmin" ? "/superadmin/restaurants" : "/admin");
+      navigate(res.data.user.role === "superadmin" ? "/superadmin/access" : "/admin");
 
     } catch (err: any) {
       console.error(err);

@@ -13,7 +13,7 @@ test.describe('Admin Pages (Authenticated)', () => {
   test('dashboard loads after admin login', async ({ page }) => {
     await openAdmin(page, '/admin');
     expect(page.url()).not.toContain('/admin/login');
-    await expect(page.getByText('Artisan Admin')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 5000 });
   });
 
   test('sidebar navigation — POS link works', async ({ page }) => {

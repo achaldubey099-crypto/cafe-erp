@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { createPublicId } = require("../utils/publicIds");
+const { buildRestaurantAccessKey } = require("../utils/accessKeys");
 
 const restaurantSchema = new mongoose.Schema(
   {
@@ -21,6 +22,13 @@ const restaurantSchema = new mongoose.Schema(
       unique: true,
       default: () => createPublicId("rest"),
     },
+    accessKey: {
+      type: String,
+      default: null,
+      unique: true,
+      index: true,
+      sparse: true,
+    },
     logoUrl: {
       type: String,
       default: "",
@@ -38,5 +46,9 @@ const restaurantSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+restaurantSchema.pre("validate", function () {
+  this.accessKey = buildRestaurantAccessKey(this);
+});
 
 module.exports = mongoose.model("Restaurant", restaurantSchema);

@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import API from "../lib/api";
-import { getOrCreateTenantSessionId, getPublicRestaurantId, getPublicTableId } from "../lib/tenant";
+import { getOrCreateTenantSessionId, getTenantContext } from "../lib/tenant";
 
 type RazorpayOrderResponse = {
   id?: string;
@@ -46,8 +46,9 @@ export default function Checkout() {
   const [notice, setNotice] = useState<CheckoutNotice | null>(null);
 
   // ✅ GET TABLE
-  const tableId = getPublicTableId();
-  const restaurantId = getPublicRestaurantId();
+  const tenant = getTenantContext();
+  const tableId = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
+  const restaurantId = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId;
 
   // ✅ CREATE SESSION (ONLY ONCE)
   useEffect(() => {

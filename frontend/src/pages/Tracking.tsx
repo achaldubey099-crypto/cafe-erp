@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star, XCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../lib/api';
-import { getOrCreateTenantSessionId, getPublicRestaurantId, getPublicTableId } from '../lib/tenant';
+import { getOrCreateTenantSessionId, getTenantContext } from '../lib/tenant';
 import { Feedback, Order } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -79,8 +79,9 @@ export default function Tracking() {
   );
 
   useEffect(() => {
-    const boundRestaurantId = getPublicRestaurantId();
-    const boundTableId = getPublicTableId();
+    const tenant = getTenantContext();
+    const boundRestaurantId = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId;
+    const boundTableId = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
     const boundSessionId = getOrCreateTenantSessionId();
 
     const fetchOrders = async () => {
@@ -123,7 +124,7 @@ export default function Tracking() {
 
     const interval = setInterval(fetchOrders, 3000);
     return () => clearInterval(interval);
-  }, [location.hash, location.search]);
+  }, [location.pathname, location.hash, location.search]);
 
   useEffect(() => {
     if (!orders.length) {

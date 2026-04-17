@@ -171,7 +171,7 @@ test.describe('Razorpay Checkout Flows', () => {
     await expect.poll(() => orderPayload?.paymentMethod).toBe('Card');
     await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
     await page.getByRole('button', { name: 'Track Order' }).click();
-    await expect(page).toHaveURL(/\/orders\?tableId=7/);
+    await expect(page).toHaveURL(/\/orders$/);
 
     const state = await page.evaluate(() => ({
       cart: JSON.parse(localStorage.getItem('cart') || '[]'),
@@ -389,9 +389,8 @@ test.describe('Admin Control Flows', () => {
   test('settings controls keep the general form accessible', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
 
-    await expect(page.getByRole('button', { name: 'Save Changes' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Delete Store Data' })).toBeVisible();
-    await expect(page.locator('label:has-text("Store Name") + input')).toHaveValue('Artisan Coffee House');
-    await expect(page.locator('label:has-text("Store Email") + input')).toHaveValue('hello@artisan.coffee');
+    await expect(page.getByRole('button', { name: 'Save Branding' })).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await expect(page.locator('input[type="text"]').nth(1)).toHaveValue('Fuel Headquarters');
   });
 });

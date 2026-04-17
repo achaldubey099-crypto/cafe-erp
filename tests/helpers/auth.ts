@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+import { PUBLIC_TEST_RESTAURANT, getTableAccessKey } from './public-access';
 
 const API_BASE = 'http://127.0.0.1:5001/api';
 
@@ -47,7 +48,7 @@ export async function injectFakeCustomerSession(page: Page) {
  * Inject cart items into localStorage for testing Cart/Checkout pages.
  */
 export async function injectCartItems(page: Page) {
-  await page.addInitScript(() => {
+  await page.addInitScript(({ restaurantAccessKey, tableAccessKey }) => {
     localStorage.setItem(
       'cart',
       JSON.stringify([
@@ -69,6 +70,11 @@ export async function injectCartItems(page: Page) {
         },
       ])
     );
+    localStorage.setItem('restaurantAccessKey', restaurantAccessKey);
+    localStorage.setItem('tableAccessKey', tableAccessKey);
+  }, {
+    restaurantAccessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+    tableAccessKey: getTableAccessKey(7),
   });
 }
 

@@ -1,12 +1,35 @@
 const Restaurant = require("../models/Restaurant");
-const Table = require("../models/Table");
+const cloudinary = require("../config/cloudinary");
+const { syncRestaurantAccessKey } = require("../utils/accessKeys");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
+const { getTableSlug } = require("../utils/tableSlug");
+const { ensureRestaurantTables } = require("../utils/ensureRestaurantTables");
+
+const uploadRestaurantImage = (fileBuffer) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "cafe-erp/restaurants",
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(result);
+      }
+    );
+
+    stream.end(fileBuffer);
+  });
 
 const serializeRestaurant = (restaurant, tables = []) => ({
   _id: restaurant._id,
   brandName: restaurant.brandName,
   slug: restaurant.slug,
   publicRestaurantId: restaurant.publicRestaurantId,
+  accessKey: restaurant.accessKey || "",
   logoUrl: restaurant.logoUrl || "",
   description: restaurant.description || "",
   active: restaurant.active,
@@ -14,7 +37,9 @@ const serializeRestaurant = (restaurant, tables = []) => ({
     _id: table._id,
     label: table.label,
     tableNumber: table.tableNumber,
+    slug: getTableSlug(table),
     publicTableId: table.publicTableId,
+    accessKey: table.accessKey || "",
     active: table.active,
   })),
 });
@@ -26,14 +51,14 @@ const getCurrentRestaurant = async (req, res) => {
       return res.status(400).json({ message: "Restaurant context is required" });
     }
 
-    const [restaurant, tables] = await Promise.all([
-      Restaurant.findById(restaurantId),
-      Table.find({ restaurantId }).sort({ tableNumber: 1 }),
-    ]);
+    const restaurant = await Restaurant.findById(restaurantId);
 
     if (!restaurant) {
       return res.status(404).json({ message: "Restaurant not found" });
     }
+
+    await syncRestaurantAccessKey(restaurant);
+    const tables = await ensureRestaurantTables({ restaurantId: restaurant._id });
 
     res.json(serializeRestaurant(restaurant, tables));
   } catch (error) {
@@ -54,13 +79,24 @@ const updateCurrentRestaurant = async (req, res) => {
     }
 
     const { brandName, logoUrl, description } = req.body;
+    let uploadedImage = null;
+
+    if (req.file) {
+      uploadedImage = await uploadRestaurantImage(req.file.buffer);
+    }
+
     if (brandName) restaurant.brandName = brandName;
-    if (logoUrl !== undefined) restaurant.logoUrl = logoUrl;
+    if (uploadedImage?.secure_url) {
+      restaurant.logoUrl = uploadedImage.secure_url;
+    } else if (logoUrl !== undefined) {
+      restaurant.logoUrl = logoUrl;
+    }
     if (description !== undefined) restaurant.description = description;
 
     await restaurant.save();
+    await syncRestaurantAccessKey(restaurant);
 
-    const tables = await Table.find({ restaurantId }).sort({ tableNumber: 1 });
+    const tables = await ensureRestaurantTables({ restaurantId: restaurant._id });
     res.json({
       message: "Restaurant branding updated successfully",
       restaurant: serializeRestaurant(restaurant, tables),

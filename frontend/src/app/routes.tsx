@@ -24,7 +24,7 @@ export default function AppRoutes() {
         <Route
           path="/checkout"
           element={
-            <ProtectedRoute role="user">
+            <ProtectedRoute roles={["user"]}>
               <Checkout />
             </ProtectedRoute>
           }
@@ -37,7 +37,7 @@ export default function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute role="admin">
+            <ProtectedRoute roles={["admin", "owner"]}>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -46,7 +46,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/orders"
           element={
-            <ProtectedRoute role="admin">
+            <ProtectedRoute roles={["admin", "owner"]}>
               <Orders />
             </ProtectedRoute>
           }

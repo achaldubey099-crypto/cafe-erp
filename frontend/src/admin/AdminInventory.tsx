@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, AlertTriangle, Ban, Plus, Download, Filter, Edit2, X } from 'lucide-react';
+import { Package, AlertTriangle, Ban, Plus, Download, Filter, Edit2, Trash2, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import API from '../lib/api';
 import { Product } from '../types';
@@ -14,7 +14,9 @@ export default function AdminInventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [csvUploading, setCsvUploading] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [form, setForm] = useState({
     name: '',
     price: '',
@@ -23,11 +25,13 @@ export default function AdminInventory() {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
 
   const loadMenu = async () => {
     try {
       setLoading(true);
       setError('');
+      setMessage('');
       const res = await API.get<Product[]>('/menu');
       setProducts(res.data || []);
     } catch (err: any) {
@@ -84,6 +88,7 @@ export default function AdminInventory() {
     try {
       setSaving(true);
       setError('');
+      setMessage('');
 
       const body = new FormData();
       body.append('name', form.name);
@@ -104,12 +109,64 @@ export default function AdminInventory() {
           ? prev.map((item) => (item._id === editingId ? res.data.item : item))
           : [res.data.item, ...prev]
       ));
+      setMessage(editingId ? 'Menu item updated.' : 'Menu item created.');
       closeModal();
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to save menu item');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCsvUpload = async () => {
+    if (!csvFile) {
+      setError('Choose a CSV file first');
+      return;
+    }
+
+    try {
+      setCsvUploading(true);
+      setError('');
+      setMessage('');
+
+      const body = new FormData();
+      body.append('file', csvFile);
+
+      const res = await API.post<{ message: string; count: number }>('/menu/bulk-upload', body, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      setCsvFile(null);
+      setMessage(res.data?.message ? `${res.data.message} (${res.data.count} items)` : 'CSV imported successfully.');
+      await loadMenu();
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || 'Failed to upload CSV');
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const handleDeleteMenuItem = async (product: Product) => {
+    const confirmed = window.confirm(`Delete "${product.name}" from the menu?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError('');
+      setMessage('');
+
+      await API.delete(`/menu/${product._id}`);
+      setProducts((prev) => prev.filter((item) => item._id !== product._id));
+      setMessage('Menu item deleted.');
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || 'Failed to delete menu item');
     }
   };
   
@@ -142,6 +199,12 @@ export default function AdminInventory() {
         </div>
       )}
 
+      {message && (
+        <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-sm text-emerald-700">
+          {message}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, i) => (
@@ -170,7 +233,8 @@ export default function AdminInventory() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-outline/10 overflow-hidden">
+      <div className="grid xl:grid-cols-[1.4fr_0.9fr] gap-6">
+        <div className="bg-white rounded-3xl shadow-sm border border-outline/10 overflow-hidden">
         <div className="p-6 border-b border-outline/5 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-4">
             <select className="bg-surface-container border-none rounded-xl py-2.5 px-4 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary/20 outline-none">
@@ -239,16 +303,18 @@ export default function AdminInventory() {
                       <button
                         type="button"
                         onClick={() => openEditModal(product)}
-                        className="text-[10px] font-bold text-primary hover:underline px-2 py-1"
+                        className="p-2 rounded-lg text-secondary hover:bg-surface-container hover:text-primary transition-all"
+                        aria-label={`Edit ${product.name}`}
                       >
-                        Update
+                        <Edit2 size={16} />
                       </button>
                       <button
                         type="button"
-                        onClick={() => openEditModal(product)}
-                        className="p-2 rounded-lg text-secondary hover:bg-surface-container hover:text-primary transition-all"
+                        onClick={() => handleDeleteMenuItem(product)}
+                        className="p-2 rounded-lg text-secondary hover:bg-red-50 hover:text-red-600 transition-all"
+                        aria-label={`Delete ${product.name}`}
                       >
-                        <Edit2 size={16} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -260,6 +326,38 @@ export default function AdminInventory() {
               )}
             </tbody>
           </table>
+        </div>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-outline/10 p-6 space-y-4 h-fit">
+          <div>
+            <h3 className="text-xl font-headline font-extrabold text-primary">Bulk Upload Menu CSV</h3>
+            <p className="text-sm text-secondary mt-1">
+              Upload one CSV and it will add menu items directly to this cafe.
+            </p>
+          </div>
+
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setCsvFile(event.target.files?.[0] || null)}
+            className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-5 text-sm outline-none"
+          />
+
+          <div className="rounded-2xl bg-surface-container-low p-4 text-xs text-secondary space-y-2">
+            <p className="font-bold uppercase tracking-widest text-[10px] text-secondary">CSV Columns</p>
+            <p>`name`, `price`, `category`, `image`, `imageUrl`, or `image_url`, optional `isFeatured`</p>
+            <p>Use direct image URLs in the CSV if you want items to appear with images immediately.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCsvUpload}
+            disabled={csvUploading || !csvFile}
+            className="w-full rounded-2xl bg-primary text-on-primary py-4 font-headline font-bold disabled:opacity-50"
+          >
+            {csvUploading ? 'Uploading CSV...' : 'Import CSV to Cafe'}
+          </button>
         </div>
       </div>
 

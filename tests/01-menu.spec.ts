@@ -1,85 +1,46 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { mockProtectedMenuApis, openProtectedTable, PUBLIC_TEST_RESTAURANT } from './helpers/public-access';
 
 test.describe('Menu Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await mockProtectedMenuApis(page);
+    await openProtectedTable(page, 7);
   });
 
-  test('page loads and shows Artisan Café header', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Artisan Café');
+  test('page loads and shows the protected restaurant header', async ({ page }) => {
+    await expect(page.locator('h1')).toContainText(PUBLIC_TEST_RESTAURANT.brandName);
   });
 
-  test('menu items load from backend', async ({ page }) => {
-    // Wait for loading to finish
+  test('menu items load from the protected access endpoint', async ({ page }) => {
     await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    
-    // Should have at least one product card with a price tag (₹)
-    const priceElements = page.locator('text=/₹\\d+/');
-    await expect(priceElements.first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/₹\\d+/').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('category tabs render and are clickable', async ({ page }) => {
-    // Wait for categories to load
     await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    
-    // Wait for category buttons to appear
-    await page.waitForTimeout(1500);
-    
-    // Category buttons section
-    const categorySection = page.locator('section.mb-8');
-    const categoryButtons = categorySection.locator('button');
-    const count = await categoryButtons.count();
-    
-    // Should have at least one category tab
-    expect(count).toBeGreaterThan(0);
-    
-    if (count > 1) {
-      await categoryButtons.nth(1).click();
-      // The category heading should still render after switching tabs
-      await expect(page.locator('h2')).toContainText('Menu');
-    }
+    await expect(page.getByRole('button', { name: 'All' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Coffee' })).toBeVisible();
   });
 
   test('search bar exists and filters products', async ({ page }) => {
-    await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    
-    const searchInput = page.locator('input[placeholder*="Search"]');
+    const searchInput = page.getByPlaceholder('Search your favorite brew...');
     await expect(searchInput).toBeVisible();
-
-    // Type a gibberish term − should result in 0 items
     await searchInput.fill('zzzzzznonexistent');
-    await page.waitForTimeout(500);
-    
-    const itemCount = page.locator('text=/\\d+ Items/');
-    await expect(itemCount).toContainText('0 Items');
+    await expect(page.getByText(/^0 Items$/)).toBeVisible();
   });
 
-  test('login button visible for guests', async ({ page }) => {
-    await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    const loginButton = page.locator('button', { hasText: 'Login' });
-    await expect(loginButton).toBeVisible();
+  test('login button is visible for guests', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
   });
 
-  test('add-to-cart works for guests without redirecting', async ({ page }) => {
-    await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    
-    // Try clicking the first + button on a product card
-    const addButton = page.locator('section.px-6 button svg.lucide-plus').first();
-    
-    if (await addButton.isVisible().catch(() => false)) {
-      await addButton.click();
-      await expect(page).toHaveURL(/\/$/);
-      await expect(page.locator('text=/\\d+ Items/').first()).toBeVisible();
-    }
+  test('guest add-to-cart keeps the customer inside the protected menu flow', async ({ page }) => {
+    await page.locator('button svg.lucide-plus').first().click();
+    await expect(page).toHaveURL(/\/access\//);
+    await expect(page.getByText(/items/i).first()).toBeVisible();
   });
 
-  test('featured product section renders if available', async ({ page }) => {
-    await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    
-    // Check for "Editor's Choice" badge
-    const editorChoice = page.locator("text=Editor's Choice");
-    // This is optional − pass if no featured product
-    const isVisible = await editorChoice.isVisible().catch(() => false);
-    expect(typeof isVisible).toBe('boolean');
+  test("featured product section renders the editor's choice badge", async ({ page }) => {
+    await expect(page.getByText("Editor's Choice")).toBeVisible();
   });
 });

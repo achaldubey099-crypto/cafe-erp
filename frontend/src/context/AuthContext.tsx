@@ -6,7 +6,7 @@ interface User {
   name?: string;
   email?: string;
   avatar?: string;
-  role: "owner" | "superadmin" | "user";
+  role: "admin" | "owner" | "superadmin" | "user";
   restaurantId?: string | null;
   restaurantPublicId?: string | null;
   restaurantName?: string;

@@ -6,7 +6,7 @@ export default function ProtectedRoute({
   roles,
 }: {
   children: JSX.Element;
-  roles?: Array<"owner" | "superadmin" | "user">;
+  roles?: Array<"admin" | "owner" | "superadmin" | "user">;
 }) {
   const { user, customer } = useAuth();
 

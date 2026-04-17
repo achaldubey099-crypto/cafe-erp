@@ -2,13 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Search, Heart, Plus, Minus, Bell, LogIn, LogOut, ShoppingCart } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { getPublicTableId, getPublicRestaurantId } from "../lib/tenant";
+import { getTenantContext } from "../lib/tenant";
 
 interface FavoriteResponse {
   _id: string;
@@ -17,6 +17,27 @@ interface FavoriteResponse {
 
 interface ToggleFavoriteResponse {
   favorite?: FavoriteResponse;
+}
+
+interface PublicRestaurantEntryResponse {
+  restaurant?: {
+    brandName?: string;
+  };
+  firstTable?: {
+    accessKey?: string;
+    url?: string;
+  } | null;
+}
+
+interface PublicMenuResponse {
+  restaurant?: {
+    brandName?: string;
+  };
+  table?: {
+    label?: string;
+  };
+  menu?: Product[];
+  menuItems?: Product[];
 }
 
 const cropCloudinaryImage = (url = "", width: number, height: number) => {
@@ -32,6 +53,7 @@ const cropCloudinaryImage = (url = "", width: number, height: number) => {
 
 export default function Menu() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeCategory, setActiveCategory] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -40,118 +62,95 @@ export default function Menu() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [restaurantName, setRestaurantName] = useState("Cafe");
-  const [restaurantLogo, setRestaurantLogo] = useState("");
   const [tableLabel, setTableLabel] = useState("");
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { customer, logoutCustomer } = useAuth();
   const isLoggedIn = !!customer;
   const [categories, setCategories] = useState([]);
-  const tableId = getPublicTableId();
+  const tenantContext = getTenantContext();
+  const tableAccessKey = tenantContext.tableAccessKey || tenantContext.tableSlug || tenantContext.tablePublicId;
 
   // 🔥 Fetch products from backend
   useEffect(() => {
-  const fetchProducts = async () => {
-    try {
-      // 🔍 Debug fetch: build explicit backend URL and query params
-      // Resolve restaurant/table id from multiple possible sources
-      const searchParams = new URLSearchParams(window.location.search);
-      const publicRestaurantFromSearch = searchParams.get('restaurant') || searchParams.get('restaurantId') || searchParams.get('r');
-      const publicTableFromSearch = searchParams.get('table') || searchParams.get('tableId') || searchParams.get('t');
-
-      const publicRestaurant =
-        getPublicRestaurantId() ||
-        publicRestaurantFromSearch ||
-        localStorage.getItem('restaurantPublicId') ||
-        null;
-
-      const publicTable =
-        getPublicTableId() ||
-        publicTableFromSearch ||
-        localStorage.getItem('tablePublicId') ||
-        null;
-
-      console.log('Resolved Tenant IDs -> restaurant:', publicRestaurant, 'table:', publicTable);
-
-      const restaurantId = publicRestaurant;
-      console.log('Restaurant ID:', restaurantId);
-      if (!restaurantId) {
-        console.error('No restaurantId found in URL/localStorage/hash');
-      }
-
-      const hostname = window.location.hostname || 'localhost';
-      const backendPort = 5001; // backend runs on 5001 in this project
-      const url = new URL(`http://${hostname}:${backendPort}/api/menu/access`);
-      // include both parameter names to be compatible with different backends
-      if (publicRestaurant) {
-        url.searchParams.set('restaurant', publicRestaurant);
-        url.searchParams.set('restaurantId', publicRestaurant);
-      }
-      if (publicTable) {
-        url.searchParams.set('table', publicTable);
-        url.searchParams.set('tableId', publicTable);
-      }
-
-      console.log('DEBUG: Fetching menu from URL ->', url.toString());
-
-      // Raw fetch to capture exact response (status + body)
-      const res = await fetch(url.toString(), { method: 'GET' });
-
-      console.log('STATUS:', res.status);
-
-      const text = await res.text();
-      console.log('RAW RESPONSE:', text);
-
-      let data: any;
+    const fetchProducts = async () => {
       try {
-        data = JSON.parse(text);
-      } catch (err) {
-        console.error('JSON PARSE ERROR:', err);
-        throw new Error('Response is not valid JSON');
+        setLoading(true);
+        setError("");
+
+        const searchParams = new URLSearchParams(window.location.search);
+        const publicRestaurantFromSearch = searchParams.get("restaurant") || searchParams.get("restaurantId") || searchParams.get("r");
+        const publicTableFromSearch = searchParams.get("table") || searchParams.get("tableId") || searchParams.get("t");
+        const tenant = getTenantContext();
+
+        const publicRestaurant =
+          tenant.restaurantPublicId ||
+          publicRestaurantFromSearch ||
+          localStorage.getItem("restaurantPublicId") ||
+          null;
+
+        const publicTable =
+          tenant.tablePublicId ||
+          publicTableFromSearch ||
+          localStorage.getItem("tablePublicId") ||
+          null;
+
+        const restaurantAccessKey = tenant.restaurantAccessKey || null;
+        const tableAccessKey = tenant.tableAccessKey || null;
+        const restaurantSlug = tenant.restaurantSlug || null;
+        const tableSlug = tenant.tableSlug || null;
+
+        if (!tableAccessKey && !restaurantAccessKey && !restaurantSlug && !publicRestaurant) {
+          throw new Error("Restaurant access key not found");
+        }
+
+        if (restaurantAccessKey || (restaurantSlug && !tableSlug)) {
+          const entryRes = await API.get<PublicRestaurantEntryResponse>("/menu/entry", {
+            params: restaurantAccessKey ? { restaurantAccessKey } : { restaurantSlug },
+          });
+
+          setRestaurantName(entryRes.data?.restaurant?.brandName || "Cafe");
+
+          const firstTableUrl = entryRes.data?.firstTable?.url;
+          if (firstTableUrl) {
+            navigate(firstTableUrl, { replace: true });
+            return;
+          }
+
+          throw new Error("No active tables found for this restaurant");
+        }
+
+        const params: Record<string, string> = {};
+        if (restaurantAccessKey) params.restaurantAccessKey = restaurantAccessKey;
+        if (tableAccessKey) params.tableAccessKey = tableAccessKey;
+        if (restaurantSlug) params.restaurantSlug = restaurantSlug;
+        if (tableSlug) params.tableSlug = tableSlug;
+        if (publicRestaurant) params.restaurant = publicRestaurant;
+        if (publicTable) params.table = publicTable;
+
+        const res = await API.get<PublicMenuResponse>("/menu/access", { params });
+        const data = res.data || {};
+        const menuData = Array.isArray(data) ? data : data.menu || data.menuItems || [];
+
+        setProducts(menuData);
+        setRestaurantName(data.restaurant?.brandName || "Cafe");
+        setTableLabel(data.table?.label || "");
+
+        const uniqueCategories = [...new Set((menuData || []).map((item) => item.category))].sort();
+        setCategories(["All", ...uniqueCategories]);
+        setActiveCategory("All");
+      } catch (err: any) {
+        console.error("❌ MENU FETCH ERROR:", err);
+        setProducts([]);
+        setCategories([]);
+        setError(err?.response?.data?.message || err?.message || "Failed to load menu");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      console.log('PARSED DATA:', data);
-
-      const menuData = Array.isArray(data) ? data : data.menu || data.menuItems || [];
-
-      console.log('FINAL MENU DATA:', menuData);
-
-      setProducts(menuData);
-      setRestaurantName(data.restaurant?.brandName || 'Cafe');
-      setRestaurantLogo(data.restaurant?.logoUrl || '');
-      setTableLabel(data.table?.label || '');
-
-      // 🔥 Extract unique categories from the resolved menu data
-      const uniqueCategories = [
-        ...new Set((menuData || []).map((item: any) => item.category))
-      ].sort();
-
-      // 🔥 Add "All" category
-      setCategories(["All", ...uniqueCategories]);
-
-      // 🔥 Default category
-      setActiveCategory("All");
-
-    } catch (err: any) {
-      console.error("❌ MENU FETCH ERROR:", err);
-
-      if (err.response) {
-        console.error("Status:", err.response.status);
-        console.error("Data:", err.response.data);
-      } else if (err.request) {
-        console.error("No response received:", err.request);
-      } else {
-        console.error("Error message:", err.message);
-      }
-
-      setError("Failed to load menu");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchProducts();
-}, []);
+    fetchProducts();
+  }, [location.pathname, location.hash, location.search, navigate]);
 
 
   // Fetch user favorites if logged in
@@ -259,17 +258,14 @@ const filteredProducts = products.filter((p) => {
       {/* Header */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm">
         <div className="flex justify-between items-center px-6 py-4 w-full">
-              <div className="flex flex-col">
+          <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary font-headline tracking-tight">
               {restaurantName}
             </h1>
             <span className="text-[10px] uppercase tracking-[0.2em] text-secondary font-semibold">
-              {tableLabel || "QR Ordering"}
+              {tableLabel || (tableAccessKey ? "Protected Table Access" : "QR Ordering")}
             </span>
           </div>
-          {restaurantLogo ? (
-            <img src={restaurantLogo} alt={restaurantName} className="w-11 h-11 rounded-2xl object-cover border border-outline/10" />
-          ) : null}
           <div className="flex items-center gap-3">
             <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-95">
               <Bell size={20} className="text-primary" />
@@ -296,7 +292,7 @@ const filteredProducts = products.filter((p) => {
       </header>
 
       <main className="pt-24">
-        {tableId && (
+        {tableAccessKey && (
           <section className="px-6 mb-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary">
               <span className="h-2 w-2 rounded-full bg-primary" />

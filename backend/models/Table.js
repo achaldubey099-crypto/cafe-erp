@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const { createPublicId } = require("../utils/publicIds");
+const { buildTableAccessKey } = require("../utils/accessKeys");
+const { buildDefaultTableSlug, slugifySegment } = require("../utils/tableSlug");
 
 const tableSchema = new mongoose.Schema(
   {
@@ -24,11 +26,24 @@ const tableSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    slug: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+    },
     publicTableId: {
       type: String,
       required: true,
       unique: true,
       default: () => createPublicId("table"),
+    },
+    accessKey: {
+      type: String,
+      default: null,
+      unique: true,
+      index: true,
+      sparse: true,
     },
     active: {
       type: Boolean,
@@ -41,5 +56,11 @@ const tableSchema = new mongoose.Schema(
 );
 
 tableSchema.index({ restaurantId: 1, tableNumber: 1 }, { unique: true });
+tableSchema.index({ restaurantId: 1, slug: 1 }, { unique: true, sparse: true });
+
+tableSchema.pre("validate", function () {
+  this.slug = slugifySegment(this.slug) || buildDefaultTableSlug(this.label, this.tableNumber);
+  this.accessKey = buildTableAccessKey(this);
+});
 
 module.exports = mongoose.model("Table", tableSchema);

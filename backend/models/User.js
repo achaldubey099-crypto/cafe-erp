@@ -41,8 +41,15 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["user", "owner", "superadmin"],
+      enum: ["user", "admin", "owner", "superadmin"],
       default: "user",
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "suspended"],
+      default: "active",
+      index: true,
     },
 
     // legacy restaurant link (kept for backward compatibility)

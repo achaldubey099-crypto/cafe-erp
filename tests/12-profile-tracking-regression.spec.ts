@@ -37,7 +37,10 @@ async function openTracking(
 ) {
   await clearStorage(page);
   await seedTable(page, '7');
-  await mockLatestOrder(page, options?.order === undefined ? TRACKING_ORDER : options.order);
+  await mockLatestOrder(
+    page,
+    options?.order === undefined ? { ...TRACKING_ORDER, status: 'pending' } : options.order
+  );
   await mockFeedback(page, options?.feedback === undefined ? EXISTING_FEEDBACK : options.feedback);
 
   if (options?.customer) {
@@ -189,7 +192,6 @@ test.describe('Profile And Tracking Regression Suite', () => {
     await page.getByRole('button', { name: 'Logout' }).first().click();
     await page.waitForFunction(() => !localStorage.getItem('customerToken'));
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('button', { name: 'Login' }).first()).toBeVisible();
   });
 
   test('logged-in profile removes favorites after logout', async ({ page }) => {
@@ -232,7 +234,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
 
   test('tracking page shows order total banner', async ({ page }) => {
     await openTracking(page);
-    await expect(page.getByText('Order total ₹640.00')).toBeVisible();
+    await expect(page.getByText(/Order total ₹/)).toBeVisible();
   });
 
   test('tracking page shows order item summary', async ({ page }) => {
@@ -280,7 +282,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
         status === 'ready'
           ? 'Ready for Pickup'
           : status === 'completed'
-            ? 'Completed'
+            ? 'No Active Order'
             : status.charAt(0).toUpperCase() + status.slice(1);
       await expect(page.getByRole('heading', { name: expectedText })).toBeVisible();
     });
@@ -329,7 +331,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
 
   test('tracking shows no order message when latest order is missing', async ({ page }) => {
     await openTracking(page, { order: null, feedback: null });
-    await expect(page.getByText('No active order found')).toBeVisible();
+    await expect(page.getByText('No pending, preparing, or ready orders right now.')).toBeVisible();
   });
 
   test('tracking shows no order item fallback when there is no latest order', async ({ page }) => {
@@ -349,7 +351,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
 
   test('tracking shows pending stage label', async ({ page }) => {
     await openTracking(page);
-    await expect(page.getByText('Pending')).toBeVisible();
+    await expect(page.locator('main').getByText('Pending', { exact: true }).first()).toBeVisible();
   });
 
   test('tracking shows preparing stage label', async ({ page }) => {

@@ -4,6 +4,11 @@ const Cafe = require("../models/Cafe");
 const Table = require("../models/Table");
 const User = require("../models/User");
 const StoreSettings = require("../models/StoreSettings");
+const Menu = require("../models/Menu");
+const Order = require("../models/Order");
+const { syncRestaurantAccessKey } = require("../utils/accessKeys");
+const { getTableSlug } = require("../utils/tableSlug");
+const ADMIN_ACCESS_ROLES = ["admin", "owner"];
 
 const slugify = (value) =>
   String(value || "")
@@ -16,6 +21,7 @@ const serializeRestaurant = (restaurant, owner) => ({
   brandName: restaurant.brandName,
   slug: restaurant.slug,
   publicRestaurantId: restaurant.publicRestaurantId,
+  accessKey: restaurant.accessKey || "",
   logoUrl: restaurant.logoUrl || "",
   active: restaurant.active,
   owner: owner
@@ -23,14 +29,139 @@ const serializeRestaurant = (restaurant, owner) => ({
         _id: owner._id,
         name: owner.name,
         email: owner.email,
+        status: owner.status || "active",
       }
     : null,
 });
 
+const serializeAdminAccount = (user, cafe = null, restaurant = null) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  cafeId: user.cafeId || null,
+  cafeName: cafe?.name || "",
+  restaurantId: user.restaurantId || cafe?.restaurantRef || null,
+  restaurantName: restaurant?.brandName || "",
+  authProvider: user.authProvider || "local",
+  status: user.status || "active",
+  createdAt: user.createdAt,
+});
+
+const resolveRestaurantIdForCafe = async (cafe) => {
+  if (!cafe) return null;
+  if (cafe.restaurantRef) return cafe.restaurantRef;
+
+  const linkedOwner = await User.findOne(
+    {
+      cafeId: cafe._id,
+      role: "owner",
+      restaurantId: { $ne: null },
+    },
+    "restaurantId"
+  ).lean();
+
+  if (linkedOwner?.restaurantId) {
+    await Cafe.findByIdAndUpdate(cafe._id, { restaurantRef: linkedOwner.restaurantId });
+    return linkedOwner.restaurantId;
+  }
+
+  return null;
+};
+
+const countRemainingTenantAccess = async ({ cafeId = null, restaurantId = null }) => {
+  const scope = [
+    ...(cafeId ? [{ cafeId }] : []),
+    ...(restaurantId ? [{ restaurantId }] : []),
+  ];
+
+  if (scope.length === 0) {
+    return 0;
+  }
+
+  return User.countDocuments({
+    role: { $in: ADMIN_ACCESS_ROLES },
+    $or: scope,
+  });
+};
+
+const purgeCafeTenantData = async ({ cafeId = null, restaurantId = null }) => {
+  const tenantCafeId = cafeId || null;
+  const tenantRestaurantId = restaurantId || null;
+
+  if (tenantCafeId) {
+    await User.deleteMany({ cafeId: tenantCafeId });
+    await Order.deleteMany({ cafeId: tenantCafeId });
+    await Menu.deleteMany({ cafeId: tenantCafeId });
+    await Table.deleteMany({ cafeId: tenantCafeId });
+    await StoreSettings.deleteMany({ cafeId: tenantCafeId });
+    await Cafe.deleteOne({ _id: tenantCafeId });
+  }
+
+  if (tenantRestaurantId) {
+    await User.deleteMany({ restaurantId: tenantRestaurantId });
+    await Order.deleteMany({ restaurantId: tenantRestaurantId });
+    await Menu.deleteMany({ restaurantId: tenantRestaurantId });
+    await Table.deleteMany({ restaurantId: tenantRestaurantId });
+    await StoreSettings.deleteMany({ restaurantId: tenantRestaurantId });
+    await Restaurant.deleteOne({ _id: tenantRestaurantId });
+  }
+};
+
+const deleteAccessAccountByUser = async (user) => {
+  const cafe =
+    (user.cafeId ? await Cafe.findById(user.cafeId) : null) ||
+    (user.restaurantId ? await Cafe.findOne({ restaurantRef: user.restaurantId }) : null);
+
+  const restaurantId = user.restaurantId || (await resolveRestaurantIdForCafe(cafe));
+  const cafeId = cafe?._id || user.cafeId || null;
+  const roleLabel = user.role === "owner" ? "Owner" : "Admin";
+
+  await User.deleteOne({ _id: user._id });
+
+  if (user.role === "owner" && cafe) {
+    cafe.ownerName = "";
+    cafe.email = "";
+    await cafe.save();
+  }
+
+  const remainingAccessCount = await countRemainingTenantAccess({
+    cafeId,
+    restaurantId,
+  });
+
+  if (remainingAccessCount === 0 && (cafeId || restaurantId)) {
+    await purgeCafeTenantData({
+      cafeId,
+      restaurantId,
+    });
+
+    return {
+      message: `${roleLabel} account deleted and cafe access removed`,
+      deletedAccountId: String(user._id),
+      deletedRole: user.role,
+      deletedCafeId: cafeId ? String(cafeId) : null,
+      deletedRestaurantId: restaurantId ? String(restaurantId) : null,
+      tenantDeleted: true,
+    };
+  }
+
+  return {
+    message: `${roleLabel} account deleted successfully`,
+    deletedAccountId: String(user._id),
+    deletedRole: user.role,
+    deletedCafeId: cafeId ? String(cafeId) : null,
+    deletedRestaurantId: restaurantId ? String(restaurantId) : null,
+    tenantDeleted: false,
+  };
+};
+
 const listRestaurants = async (_req, res) => {
   try {
-    const restaurants = await Restaurant.find().sort({ createdAt: -1 }).lean();
-    const owners = await User.find({ role: "owner" }, "name email restaurantId").lean();
+    const restaurantDocs = await Restaurant.find().sort({ createdAt: -1 });
+    await Promise.all(restaurantDocs.map((restaurant) => syncRestaurantAccessKey(restaurant)));
+    const restaurants = restaurantDocs.map((restaurant) => restaurant.toObject());
+    const owners = await User.find({ role: "owner" }, "name email restaurantId status").lean();
     const ownerMap = new Map(owners.map((owner) => [String(owner.restaurantId), owner]));
 
     res.json(restaurants.map((restaurant) => serializeRestaurant(restaurant, ownerMap.get(String(restaurant._id)))));
@@ -78,6 +209,7 @@ const createRestaurantWithOwner = async (req, res) => {
       name: brandName,
       ownerName,
       email: ownerEmail,
+      restaurantRef: restaurant._id,
       features: ['POS', 'inventory', 'analytics'],
       subscriptionStatus: 'active',
     });
@@ -99,6 +231,7 @@ const createRestaurantWithOwner = async (req, res) => {
       cafeId: cafe._id,
       label: `Table ${index + 1}`,
       tableNumber: index + 1,
+      slug: getTableSlug({ label: `Table ${index + 1}`, tableNumber: index + 1 }),
     }));
     await Table.insertMany(tableDocs);
     await StoreSettings.create({ restaurantId: restaurant._id, cafeId: cafe._id, profitMargin: 0.4 });
@@ -155,10 +288,199 @@ const updateRestaurantOwner = async (req, res) => {
   }
 };
 
+const listAdminAccounts = async (_req, res) => {
+  try {
+    const admins = await User.find(
+      { role: { $in: ADMIN_ACCESS_ROLES } },
+      "name email role cafeId restaurantId authProvider status createdAt"
+    )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const cafeIds = [...new Set(admins.map((admin) => String(admin.cafeId || "")).filter(Boolean))];
+    const cafes = cafeIds.length
+      ? await Cafe.find({ _id: { $in: cafeIds } }, "name ownerName email restaurantRef").lean()
+      : [];
+    const cafeMap = new Map(cafes.map((cafe) => [String(cafe._id), cafe]));
+
+    const restaurantIds = [
+      ...new Set(
+        admins
+          .map((admin) => String(admin.restaurantId || ""))
+          .concat(cafes.map((cafe) => String(cafe.restaurantRef || "")))
+          .filter(Boolean)
+      ),
+    ];
+
+    const restaurants = restaurantIds.length
+      ? await Restaurant.find({ _id: { $in: restaurantIds } }, "brandName publicRestaurantId").lean()
+      : [];
+    const restaurantMap = new Map(restaurants.map((restaurant) => [String(restaurant._id), restaurant]));
+
+    const adminAccounts = admins.map((admin) => {
+      const cafe = admin.cafeId ? cafeMap.get(String(admin.cafeId)) || null : null;
+      const restaurantId = admin.restaurantId || cafe?.restaurantRef || null;
+      const restaurant = restaurantId ? restaurantMap.get(String(restaurantId)) || null : null;
+      return serializeAdminAccount(admin, cafe, restaurant);
+    });
+
+    res.json({
+      admins: adminAccounts,
+      summary: {
+        total: adminAccounts.length,
+        admins: adminAccounts.filter((account) => account.role === "admin").length,
+        owners: adminAccounts.filter((account) => account.role === "owner").length,
+        cafes: new Set(adminAccounts.map((account) => String(account.cafeId || "")).filter(Boolean)).size,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createAdminAccount = async (req, res) => {
+  try {
+    const { name, email, password, cafeId, role = "admin" } = req.body;
+
+    if (!name || !email || !password || !cafeId) {
+      return res.status(400).json({ message: "name, email, password and cafeId are required" });
+    }
+
+    if (!ADMIN_ACCESS_ROLES.includes(role)) {
+      return res.status(400).json({ message: "role must be admin or owner" });
+    }
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "User email already exists" });
+    }
+
+    const cafe = await Cafe.findById(cafeId);
+    if (!cafe) {
+      return res.status(404).json({ message: "Cafe not found" });
+    }
+
+    if (role === "owner") {
+      const existingOwner = await User.findOne({ cafeId: cafe._id, role: "owner" });
+      if (existingOwner) {
+        return res.status(400).json({ message: "This cafe already has an owner account" });
+      }
+    }
+
+    const restaurantId = await resolveRestaurantIdForCafe(cafe);
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const adminAccount = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      authProvider: "local",
+      cafeId: cafe._id,
+      restaurantId: restaurantId || null,
+      status: "active",
+    });
+
+    if (role === "owner") {
+      cafe.ownerName = name;
+      cafe.email = email;
+      await cafe.save();
+    }
+
+    const restaurant = restaurantId
+      ? await Restaurant.findById(restaurantId, "brandName publicRestaurantId").lean()
+      : null;
+
+    res.status(201).json({
+      message: role === "owner" ? "Owner account created successfully" : "Admin account created successfully",
+      admin: serializeAdminAccount(adminAccount, cafe.toObject(), restaurant),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const setRestaurantOwnerStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!["active", "suspended"].includes(status)) {
+      return res.status(400).json({ message: "status must be active or suspended" });
+    }
+
+    const restaurant = await Restaurant.findById(req.params.id).lean();
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    const owner = await User.findOne({ restaurantId: restaurant._id, role: "owner" });
+    if (!owner) {
+      return res.status(404).json({ message: "Owner credentials not found" });
+    }
+
+    owner.status = status;
+    await owner.save();
+
+    res.json({
+      message: status === "suspended" ? "Owner credentials suspended" : "Owner credentials reactivated",
+      restaurant: serializeRestaurant(restaurant, owner.toObject()),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteRestaurantOwnerCredentials = async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id).lean();
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    const owner = await User.findOne({ restaurantId: restaurant._id, role: "owner" });
+    if (!owner) {
+      return res.status(404).json({ message: "Owner credentials not found" });
+    }
+
+    const result = await deleteAccessAccountByUser(owner);
+
+    res.json({
+      message: result.message,
+      restaurant: result.tenantDeleted ? null : serializeRestaurant(restaurant, null),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteAdminAccount = async (req, res) => {
+  try {
+    const user = await User.findOne({
+      _id: req.params.id,
+      role: { $in: ADMIN_ACCESS_ROLES },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "Admin account not found" });
+    }
+
+    const result = await deleteAccessAccountByUser(user);
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listRestaurants,
   createRestaurantWithOwner,
   updateRestaurantOwner,
+  listAdminAccounts,
+  createAdminAccount,
+  deleteAdminAccount,
+  setRestaurantOwnerStatus,
+  deleteRestaurantOwnerCredentials,
   // new multi-tenant cafe management
   listCafes: async (req, res) => {
     try {

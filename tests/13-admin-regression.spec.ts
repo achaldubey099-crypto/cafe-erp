@@ -34,7 +34,7 @@ const adminProtectedPaths = [
 
 const sidebarLabels = ['Dashboard', 'POS', 'Orders', 'Inventory', 'Staff', 'Analytics', 'Settings', 'Logout'] as const;
 const orderFilters = ['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled'] as const;
-const settingsTabs = ['General', 'Notifications', 'Security', 'Localization', 'Appearance'] as const;
+const settingsHighlights = ['Public Cafe URL', 'Table Links for Public Access', 'Upload Restaurant Image'] as const;
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 test.describe('Admin Regression Suite', () => {
@@ -58,7 +58,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('admin login heading is visible', async ({ page }) => {
     await page.goto('/admin/login');
-    await expect(page.getByRole('heading', { name: 'Admin Login' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cafe Owner Login' })).toBeVisible();
   });
 
   test('admin login email field is visible', async ({ page }) => {
@@ -73,7 +73,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('admin login button is visible', async ({ page }) => {
     await page.goto('/admin/login');
-    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
   });
 
   test('admin login submits and routes to dashboard', async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe('Admin Regression Suite', () => {
     await page.goto('/admin/login');
     await page.getByPlaceholder('Email').fill('admin@artisan.coffee');
     await page.getByPlaceholder('Password').fill('secret123');
-    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('button', { name: 'Login', exact: true }).click();
     await expect(page).toHaveURL(/\/admin$/);
   });
 
@@ -292,7 +292,7 @@ test.describe('Admin Regression Suite', () => {
 
   test('inventory shows menu items stat', async ({ page }) => {
     await openAdmin(page, '/admin/inventory');
-    await expect(page.getByText('Menu Items')).toBeVisible();
+    await expect(page.getByText('Live menu')).toBeVisible();
   });
 
   test('inventory renders burger item row', async ({ page }) => {
@@ -314,7 +314,7 @@ test.describe('Admin Regression Suite', () => {
   test('inventory modal shows file input', async ({ page }) => {
     await openAdmin(page, '/admin/inventory');
     await page.getByRole('button', { name: 'Add New Item' }).click();
-    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await expect(page.locator('input[type="file"]').last()).toBeVisible();
   });
 
   test('inventory modal can save a new item', async ({ page }) => {
@@ -408,34 +408,34 @@ test.describe('Admin Regression Suite', () => {
 
   test('settings page heading is visible', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Restaurant Settings' })).toBeVisible();
   });
 
-  for (const tab of settingsTabs) {
-    test(`settings page shows ${tab} tab`, async ({ page }) => {
+  for (const highlight of settingsHighlights) {
+    test(`settings page shows ${highlight}`, async ({ page }) => {
       await openAdmin(page, '/admin/settings');
-      await expect(page.getByRole('button', { name: tab })).toBeVisible();
+      await expect(page.getByText(highlight)).toBeVisible();
     });
   }
 
   test('settings page shows store name input', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
-    await expect(page.locator('label:has-text("Store Name") + input')).toHaveValue('Artisan Coffee House');
+    await expect(page.locator('input[type="text"]').nth(1)).toHaveValue('Fuel Headquarters');
   });
 
   test('settings page shows store email input', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
-    await expect(page.locator('label:has-text("Store Email") + input')).toHaveValue('hello@artisan.coffee');
+    await expect(page.getByText('/access/restaurant/rest_access_fuel_headquarters')).toBeVisible();
   });
 
   test('settings page shows save changes button', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
-    await expect(page.getByRole('button', { name: 'Save Changes' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save Branding' })).toBeVisible();
   });
 
   test('settings page shows danger zone block', async ({ page }) => {
     await openAdmin(page, '/admin/settings');
-    await expect(page.getByText('Danger Zone')).toBeVisible();
+    await expect(page.getByText('Final Public Table URLs')).toBeVisible();
   });
 
   test('sidebar logout returns to admin login', async ({ page }) => {

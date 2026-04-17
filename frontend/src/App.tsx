@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 
 import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
@@ -29,15 +29,16 @@ import Orders from "./admin/AdminOrders.tsx";
 import AdminLogin from "./admin/pages/AdminLogin";
 import SuperAdminLogin from "./admin/pages/SuperAdminLogin";
 import SuperAdminRestaurants from "./admin/SuperAdminRestaurants";
+import SuperAdminAccess from "./admin/SuperAdminAccess";
 import AdminLayout from "./components/AdminLayout";
-import { syncTenantFromHash } from "./lib/tenant";
+import { syncTenantFromLocation } from "./lib/tenant";
 
 function TableSessionBinder() {
   const location = useLocation();
 
   useEffect(() => {
-    syncTenantFromHash(location.hash);
-  }, [location.hash]);
+    syncTenantFromLocation(location.pathname, location.hash);
+  }, [location.pathname, location.hash]);
 
   return null;
 }
@@ -61,6 +62,8 @@ export default function App() {
 
           {/* ================= CUSTOMER ================= */}
           <Route path="/" element={<Menu />} />
+          <Route path="/access/restaurant/:restaurantAccessKey" element={<Menu />} />
+          <Route path="/access/:tableAccessKey" element={<Menu />} />
           <Route path="/login" element={<Login />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
@@ -75,7 +78,7 @@ export default function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute roles={["owner", "superadmin"]}>
+              <ProtectedRoute roles={["admin", "owner"]}>
                 <AdminLayout />
               </ProtectedRoute>
             }
@@ -93,13 +96,17 @@ export default function App() {
           </Route>
 
           <Route
-            path="/superadmin/restaurants"
+            path="/superadmin"
             element={
               <ProtectedRoute roles={["superadmin"]}>
-                <SuperAdminRestaurants />
+                <AdminLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<Navigate to="access" replace />} />
+            <Route path="access" element={<SuperAdminAccess />} />
+            <Route path="restaurants" element={<SuperAdminRestaurants />} />
+          </Route>
 
         </Routes>
 

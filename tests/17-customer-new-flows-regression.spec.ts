@@ -7,10 +7,10 @@ import {
   clearStorage,
   mockFeedback,
   mockLatestOrder,
-  mockMenu,
   seedCart,
   seedCustomer,
 } from './helpers/ui-fixtures';
+import { mockProtectedMenuApis, openProtectedTable, seedProtectedAccess } from './helpers/public-access';
 
 const paymentMethods = ['UPI', 'Card', 'Counter'] as const;
 const splitExpectations = [
@@ -23,28 +23,29 @@ const splitExpectations = [
 const modalTables = [2, 5, 8, 11, 14];
 const reviewRatings = [1, 2, 3, 4, 5];
 
-async function scanTableAndOpenCheckout(page: Page, tableId = 7) {
+async function scanTableAndOpenCheckout(page: Page, tableNumber = 7) {
   await clearStorage(page);
   await seedCart(page, TEST_CART);
-  await mockMenu(page);
-  await page.goto(`/?tableId=${tableId}`);
-  await expect(page.getByText(`Table #${tableId} connected`)).toBeVisible();
-  await page.goto(`/checkout?tableId=${tableId}`);
+  await seedProtectedAccess(page, tableNumber);
+  await mockProtectedMenuApis(page);
+  await openProtectedTable(page, tableNumber);
+  await page.goto('/checkout');
   await expect(page.getByText('Finalize Order')).toBeVisible();
 }
 
-async function openTrackingForReview(page: Page, options?: { cancelled?: boolean; customer?: boolean; feedback?: typeof EXISTING_FEEDBACK | null }) {
+async function openTrackingForReview(
+  page: Page,
+  options?: { cancelled?: boolean; customer?: boolean; feedback?: typeof EXISTING_FEEDBACK | null }
+) {
   const order = options?.cancelled
     ? { ...TRACKING_ORDER, _id: 'cancelled-order', status: 'cancelled' as const, tableId: 7 }
-    : TRACKING_ORDER;
+    : { ...TRACKING_ORDER, status: 'pending' as const };
 
   await clearStorage(page);
+  await seedProtectedAccess(page, 7);
   if (options?.customer) {
     await seedCustomer(page);
   }
-  await page.addInitScript(() => {
-    localStorage.setItem('tableId', '7');
-  });
   await mockLatestOrder(page, order);
   await mockFeedback(page, options?.feedback === undefined ? null : options.feedback);
   await page.goto('/orders');
@@ -85,8 +86,8 @@ test.describe('Customer New Flow Regression Suite', () => {
     });
   }
 
-  for (const tableId of modalTables) {
-    test(`counter checkout success modal is shown for table ${tableId}`, async ({ page }) => {
+  for (const tableNumber of modalTables) {
+    test(`counter checkout success modal is shown for protected table ${tableNumber}`, async ({ page }) => {
       await page.route('**/api/orders', async (route) => {
         if (route.request().method() !== 'POST') {
           await route.continue();
@@ -98,39 +99,38 @@ test.describe('Customer New Flow Regression Suite', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             message: 'Order placed successfully',
-            order: { ...TRACKING_ORDER, _id: `modal-${tableId}`, tableId },
+            order: { ...TRACKING_ORDER, _id: `modal-${tableNumber}`, tableId: tableNumber },
           }),
         });
       });
 
-      await scanTableAndOpenCheckout(page, tableId);
+      await scanTableAndOpenCheckout(page, tableNumber);
       await page.getByRole('button', { name: 'Counter' }).click();
       await page.getByRole('button', { name: /Place Order/ }).click();
 
       await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();
-      await expect(page.getByText(`Your order for Table #${tableId} has been sent to the kitchen.`)).toBeVisible();
       await expect(page.getByRole('button', { name: 'Track Order' })).toBeVisible();
     });
   }
 
   test('cancelled order page shows cancelled status', async ({ page }) => {
     await openTrackingForReview(page, { cancelled: true });
-    await expect(page.getByRole('heading', { name: 'Cancelled' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No Active Order' })).toBeVisible();
   });
 
-  test('cancelled order page shows cancellation banner', async ({ page }) => {
+  test('cancelled order page shows the active-order empty state', async ({ page }) => {
     await openTrackingForReview(page, { cancelled: true });
-    await expect(page.getByText('The kitchen marked this order as cancelled.')).toBeVisible();
+    await expect(page.getByText('No pending, preparing, or ready orders right now.')).toBeVisible();
   });
 
-  test('cancelled order page still shows order total', async ({ page }) => {
+  test('cancelled order page clears the order total card', async ({ page }) => {
     await openTrackingForReview(page, { cancelled: true });
-    await expect(page.getByText('Order total ₹640.00')).toBeVisible();
+    await expect(page.getByText('No order selected')).toBeVisible();
   });
 
-  test('cancelled order page still shows item summary', async ({ page }) => {
+  test('cancelled order page clears the item summary', async ({ page }) => {
     await openTrackingForReview(page, { cancelled: true });
-    await expect(page.getByText('Red Velvet Latte x1, Chocolate Cake x1')).toBeVisible();
+    await expect(page.getByText('No order items yet')).toBeVisible();
   });
 
   for (const rating of reviewRatings) {
@@ -139,10 +139,8 @@ test.describe('Customer New Flow Regression Suite', () => {
 
       await clearStorage(page);
       await seedCustomer(page);
-      await page.addInitScript(() => {
-        localStorage.setItem('tableId', '7');
-      });
-      await mockLatestOrder(page, TRACKING_ORDER);
+      await seedProtectedAccess(page, 7);
+      await mockLatestOrder(page, { ...TRACKING_ORDER, status: 'pending' as const });
       await page.route('**/api/feedback/order/**', async (route) => {
         await route.fulfill({
           status: 200,

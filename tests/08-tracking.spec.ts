@@ -1,7 +1,16 @@
 import { test, expect } from '@playwright/test';
 
+import { TRACKING_ORDER, clearStorage, mockFeedback, mockLatestOrder, seedCustomer, seedTable } from './helpers/ui-fixtures';
+
 test.describe('Order Tracking Page', () => {
-  test('page loads and shows Order Tracking header', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
+    await clearStorage(page);
+    await seedTable(page, '7');
+    await mockLatestOrder(page, { ...TRACKING_ORDER, status: 'pending' });
+    await mockFeedback(page, null);
+  });
+
+  test('page loads and shows order tracking header', async ({ page }) => {
     await page.goto('/orders');
     await expect(page.locator('text=Order Tracking')).toBeVisible({ timeout: 5000 });
   });
@@ -11,49 +20,39 @@ test.describe('Order Tracking Page', () => {
     await expect(page.locator('text=Current Status')).toBeVisible({ timeout: 5000 });
   });
 
-  test('shows order info or "No active order" message', async ({ page }) => {
+  test('shows the active order total', async ({ page }) => {
     await page.goto('/orders');
-    
-    await page.waitForTimeout(3000);
-    
-    // Should show either an order total or "No active order found"
-    const hasOrderTotal = await page.locator('text=/Order total/').isVisible().catch(() => false);
-    const hasNoOrder = await page.locator('text=No active order found').isVisible().catch(() => false);
-    
-    expect(hasOrderTotal || hasNoOrder).toBe(true);
+    await expect(page.getByText(/Order total ₹/)).toBeVisible();
   });
 
   test('feedback star rating buttons render', async ({ page }) => {
     await page.goto('/orders');
-    
-    // 5 star buttons should be present
-    const starButtons = page.locator('button[aria-label*="Rate"]');
-    await expect(starButtons).toHaveCount(5, { timeout: 5000 });
+    await expect(page.locator('button[aria-label*="Rate"]')).toHaveCount(5, { timeout: 5000 });
   });
 
   test('feedback textarea renders', async ({ page }) => {
     await page.goto('/orders');
-    
-    const textarea = page.locator('textarea[placeholder*="Tell us"]');
-    await expect(textarea).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('textarea[placeholder*="Tell us"]')).toBeVisible({ timeout: 5000 });
   });
 
-  test('progress timeline has 3 steps', async ({ page }) => {
+  test('progress timeline has pending, preparing, ready steps', async ({ page }) => {
     await page.goto('/orders');
-    
     const timeline = page.locator('main');
     await expect(timeline.getByText('Pending', { exact: true }).first()).toBeVisible({ timeout: 5000 });
     await expect(timeline.getByText('Preparing', { exact: true }).last()).toBeVisible();
     await expect(timeline.getByText('Ready', { exact: true }).last()).toBeVisible();
   });
 
-  test('back button navigates to home', async ({ page }) => {
+  test('back button navigates away from orders', async ({ page }) => {
     await page.goto('/orders');
-    
-    const backBtn = page.locator('button').filter({ has: page.locator('svg.lucide-arrow-left') }).first();
-    await backBtn.click();
-    
-    await page.waitForURL('**/', { timeout: 5000 });
-    expect(page.url().endsWith('/') || page.url().endsWith(':3000')).toBe(true);
+    await page.locator('button').filter({ has: page.locator('svg.lucide-arrow-left') }).first().click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test('logged-in customer sees review controls enabled', async ({ page }) => {
+    await seedCustomer(page);
+    await page.goto('/orders');
+    await page.getByRole('button', { name: 'Rate 5 stars' }).click();
+    await expect(page.getByRole('button', { name: 'Submit Review' })).toBeEnabled();
   });
 });

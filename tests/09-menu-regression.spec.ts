@@ -11,6 +11,7 @@ import {
   seedCart,
   seedCustomer,
 } from './helpers/ui-fixtures';
+import { openProtectedTable, seedProtectedAccess } from './helpers/public-access';
 
 const categories = ['Coffee', 'Snacks', 'Desserts', 'Teas', 'Seasonal'] as const;
 const bottomNavLabels = ['Menu', 'Checkout', 'Orders', 'Profile'] as const;
@@ -21,8 +22,9 @@ const authCartExpectations = [
 ] as const;
 
 async function openMenu(page: Parameters<typeof test>[0]['page']) {
+  await seedProtectedAccess(page, 7);
   await mockMenu(page);
-  await page.goto('/');
+  await openProtectedTable(page, 7);
   await page.waitForSelector('text=Loading menu...', { state: 'hidden', timeout: 10000 }).catch(() => {});
 }
 
@@ -39,12 +41,12 @@ test.describe('Menu Regression Suite', () => {
 
   test('menu page shows the cafe heading', async ({ page }) => {
     await openMenu(page);
-    await expect(page.getByRole('heading', { name: 'Artisan Café' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Fuel Headquarters' })).toBeVisible();
   });
 
   test('menu page shows the subheading', async ({ page }) => {
     await openMenu(page);
-    await expect(page.getByText('Morning Brews')).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Table 7', { exact: true })).toBeVisible();
   });
 
   test('guest sees the login button', async ({ page }) => {
@@ -119,7 +121,7 @@ test.describe('Menu Regression Suite', () => {
       await openMenu(page);
       const card = gridProductCard(page, productName);
       await card.getByRole('button').last().click();
-      await expect(page).toHaveURL(/\/$/);
+      await expect(page).toHaveURL(/\/access\//);
     });
 
     test(`guest favorite tap from ${productName} redirects to login`, async ({ page }) => {
@@ -136,7 +138,7 @@ test.describe('Menu Regression Suite', () => {
     await seedCart(page);
     await mockMenu(page);
     await mockFavorites(page);
-    await page.goto('/');
+    await openProtectedTable(page, 7);
     await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
   });
 
@@ -144,8 +146,9 @@ test.describe('Menu Regression Suite', () => {
     await seedCustomer(page);
     await mockMenu(page);
     await mockFavorites(page, PROFILE_FAVORITES);
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/$/);
+    await seedProtectedAccess(page, 7);
+    await openProtectedTable(page, 7);
+    await expect(page).toHaveURL(/\/access\/table_access_7$/);
   });
 
   for (const entry of authCartExpectations) {
@@ -154,7 +157,7 @@ test.describe('Menu Regression Suite', () => {
       await seedCart(page);
       await mockMenu(page);
       await mockFavorites(page);
-      await page.goto('/');
+      await openProtectedTable(page, 7);
       const card = gridProductCard(page, entry.name);
       await expect(card.getByText(String(entry.quantity), { exact: true })).toBeVisible();
     });
@@ -164,7 +167,7 @@ test.describe('Menu Regression Suite', () => {
       await seedCart(page);
       await mockMenu(page);
       await mockFavorites(page);
-      await page.goto('/');
+      await openProtectedTable(page, 7);
       const card = gridProductCard(page, entry.name);
       await expect(card.getByRole('button').first()).toBeVisible();
     });
@@ -174,7 +177,7 @@ test.describe('Menu Regression Suite', () => {
       await seedCart(page);
       await mockMenu(page);
       await mockFavorites(page);
-      await page.goto('/');
+      await openProtectedTable(page, 7);
       const card = gridProductCard(page, entry.name);
       await expect(card.getByRole('button').nth(1)).toBeVisible();
     });
@@ -184,10 +187,10 @@ test.describe('Menu Regression Suite', () => {
       await seedCart(page);
       await mockMenu(page);
       await mockFavorites(page);
-      await page.goto('/');
+      await openProtectedTable(page, 7);
       const card = gridProductCard(page, entry.name);
       await card.locator('button').first().click();
-      await expect(page).toHaveURL(/\/$/);
+      await expect(page).toHaveURL(/\/access\//);
     });
   }
 
@@ -196,7 +199,7 @@ test.describe('Menu Regression Suite', () => {
     await seedCart(page);
     await mockMenu(page);
     await mockFavorites(page);
-    await page.goto('/');
+    await openProtectedTable(page, 7);
     await expect(page.getByText('3 items')).toBeVisible();
   });
 
@@ -205,7 +208,7 @@ test.describe('Menu Regression Suite', () => {
     await seedCart(page);
     await mockMenu(page);
     await mockFavorites(page);
-    await page.goto('/');
+    await openProtectedTable(page, 7);
     await expect(page.getByText('₹1100')).toBeVisible();
   });
 
@@ -214,7 +217,7 @@ test.describe('Menu Regression Suite', () => {
     await seedCart(page);
     await mockMenu(page);
     await mockFavorites(page);
-    await page.goto('/');
+    await openProtectedTable(page, 7);
     await page.getByRole('button', { name: /3 items/i }).click();
     await expect(page).toHaveURL(/\/cart/);
   });
@@ -224,7 +227,7 @@ test.describe('Menu Regression Suite', () => {
     await seedCart(page);
     await mockMenu(page);
     await mockFavorites(page);
-    await page.goto('/');
+    await openProtectedTable(page, 7);
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
   });

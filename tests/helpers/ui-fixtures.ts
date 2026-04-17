@@ -1,4 +1,5 @@
 import { Page, Route } from '@playwright/test';
+import { PUBLIC_TEST_RESTAURANT, getProtectedTableUrl, getTableAccessKey, getTableLabel } from './public-access';
 
 export interface MockProduct {
   _id: string;
@@ -462,20 +463,85 @@ export async function seedAdmin(page: Page) {
 }
 
 export async function seedCart(page: Page, cart = TEST_CART) {
-  await page.addInitScript((items) => {
+  await page.addInitScript(({ items, restaurantAccessKey, tableAccessKey }) => {
     localStorage.setItem('cart', JSON.stringify(items));
-  }, cart);
+    localStorage.setItem('restaurantAccessKey', restaurantAccessKey);
+    localStorage.setItem('tableAccessKey', tableAccessKey);
+  }, {
+    items: cart,
+    restaurantAccessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+    tableAccessKey: getTableAccessKey(7),
+  });
 }
 
 export async function seedTable(page: Page, tableId = '7') {
-  await page.addInitScript((value) => {
-    localStorage.setItem('tableId', value);
-  }, tableId);
+  await page.addInitScript(({ restaurantAccessKey, tableAccessKey }) => {
+    localStorage.setItem('restaurantAccessKey', restaurantAccessKey);
+    localStorage.setItem('tableAccessKey', tableAccessKey);
+  }, {
+    restaurantAccessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+    tableAccessKey: getTableAccessKey(Number(tableId)),
+  });
 }
 
 export async function mockMenu(page: Page, products = MENU_PRODUCTS) {
   await page.route('**/api/menu**', async (route) => {
     const request = route.request();
+    const url = new URL(request.url());
+
+    if (url.pathname.endsWith('/menu/entry') && request.method() === 'GET') {
+      await json(route, {
+        restaurant: {
+          brandName: PUBLIC_TEST_RESTAURANT.brandName,
+          accessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+          slug: PUBLIC_TEST_RESTAURANT.slug,
+        },
+        firstTable: {
+          label: getTableLabel(7),
+          tableNumber: 7,
+          accessKey: getTableAccessKey(7),
+          url: getProtectedTableUrl(7),
+        },
+        tables: Array.from({ length: 8 }, (_, index) => {
+          const tableNumber = index + 1;
+          return {
+            label: getTableLabel(tableNumber),
+            tableNumber,
+            accessKey: getTableAccessKey(tableNumber),
+            url: getProtectedTableUrl(tableNumber),
+          };
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith('/menu/access') && request.method() === 'GET') {
+      const tableAccessKey =
+        request.headers()['x-table-access-key'] ||
+        url.searchParams.get('tableAccessKey') ||
+        url.searchParams.get('accessKey') ||
+        '';
+      const match = tableAccessKey.match(/(\d+)$/);
+      const tableNumber = match ? Number(match[1]) : 7;
+
+      await json(route, {
+        restaurant: {
+          brandName: PUBLIC_TEST_RESTAURANT.brandName,
+          accessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+          slug: PUBLIC_TEST_RESTAURANT.slug,
+          publicRestaurantId: PUBLIC_TEST_RESTAURANT.publicRestaurantId,
+        },
+        table: {
+          label: getTableLabel(tableNumber),
+          tableNumber,
+          accessKey: getTableAccessKey(tableNumber),
+          publicTableId: `table_public_${tableNumber}`,
+        },
+        featuredItem: products.find((item) => item.isFeatured) || null,
+        menu: products,
+      });
+      return;
+    }
 
     if (request.method() === 'GET') {
       await json(route, products);
@@ -562,6 +628,15 @@ export async function mockOrders(page: Page, orders = PROFILE_ORDERS) {
 }
 
 export async function mockLatestOrder(page: Page, order: MockOrder | null = TRACKING_ORDER) {
+  await page.route('**/api/orders/table**', async (route) => {
+    if (!order) {
+      await json(route, []);
+      return;
+    }
+
+    await json(route, [order]);
+  });
+
   await page.route('**/api/orders/latest**', async (route) => {
     if (!order) {
       await json(route, { message: 'No orders found' }, 404);
@@ -689,7 +764,7 @@ export async function installMockRazorpay(
 }
 
 export async function mockAdminLogin(page: Page) {
-  await page.route('**/api/auth/login', async (route) => {
+  await page.route('**/api/auth/admin/login', async (route) => {
     const payload = route.request().postDataJSON?.() || {};
 
     await json(route, {
@@ -798,6 +873,29 @@ export async function mockAdminPageApis(page: Page) {
   await mockOrders(page, ADMIN_ORDERS);
   await mockMenu(page);
   await page.route('**/api/admin/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/admin/restaurant/me')) {
+      await json(route, {
+        brandName: PUBLIC_TEST_RESTAURANT.brandName,
+        slug: PUBLIC_TEST_RESTAURANT.slug,
+        accessKey: PUBLIC_TEST_RESTAURANT.accessKey,
+        logoUrl: '',
+        description: 'Protected QR ordering for Fuel Headquarters',
+        publicRestaurantId: PUBLIC_TEST_RESTAURANT.publicRestaurantId,
+        tables: Array.from({ length: 8 }, (_, index) => {
+          const tableNumber = index + 1;
+          return {
+            publicTableId: `table_public_${tableNumber}`,
+            slug: `table-${tableNumber}`,
+            accessKey: getTableAccessKey(tableNumber),
+            label: getTableLabel(tableNumber),
+            tableNumber,
+          };
+        }),
+      });
+      return;
+    }
+
     await json(route, {});
   });
 }

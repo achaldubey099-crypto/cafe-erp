@@ -1,6 +1,7 @@
 const express = require("express");
 const { protect } = require("../middleware/auth");
 const { adminOnly } = require("../middleware/admin");
+const upload = require("../middleware/upload");
 
 const {
   getDashboard,
@@ -18,7 +19,7 @@ const router = express.Router();
 // ================= DASHBOARD =================
 router.get("/dashboard", protect, adminOnly, getDashboard);
 router.get("/restaurant/me", protect, adminOnly, getCurrentRestaurant);
-router.patch("/restaurant/me", protect, adminOnly, updateCurrentRestaurant);
+router.patch("/restaurant/me", protect, adminOnly, upload.single("logoFile"), updateCurrentRestaurant);
 
 // ================= ANALYTICS =================
 router.get("/weekly-sales", protect, adminOnly, getWeeklySales);

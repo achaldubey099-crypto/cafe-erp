@@ -1,5 +1,7 @@
 const TABLE_STORAGE_KEY = "tableId";
 const SESSION_STORAGE_KEY = "sessionId";
+const TABLE_ACCESS_KEY_STORAGE_KEY = "tableAccessKey";
+const TABLE_SLUG_STORAGE_KEY = "tableSlug";
 
 function parseTableId(value: string | null) {
   if (!value) {
@@ -43,5 +45,22 @@ export function getTableId() {
     return queryTableId;
   }
 
-  return parseTableId(localStorage.getItem(TABLE_STORAGE_KEY));
+  const storedTableId = parseTableId(localStorage.getItem(TABLE_STORAGE_KEY));
+  if (storedTableId) {
+    return storedTableId;
+  }
+
+  const accessKey = localStorage.getItem(TABLE_ACCESS_KEY_STORAGE_KEY) || "";
+  const accessKeyMatch = accessKey.match(/(\d+)$/);
+  if (accessKeyMatch) {
+    return parseTableId(accessKeyMatch[1]);
+  }
+
+  const tableSlug = localStorage.getItem(TABLE_SLUG_STORAGE_KEY) || "";
+  const slugMatch = tableSlug.match(/(\d+)$/);
+  if (slugMatch) {
+    return parseTableId(slugMatch[1]);
+  }
+
+  return null;
 }

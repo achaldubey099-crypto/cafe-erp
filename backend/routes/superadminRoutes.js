@@ -7,6 +7,11 @@ const {
   listCafes,
   updateCafe,
   createCafe,
+  listAdminAccounts,
+  createAdminAccount,
+  deleteAdminAccount,
+  setRestaurantOwnerStatus,
+  deleteRestaurantOwnerCredentials,
 } = require("../controller/superadminController");
 
 const router = express.Router();
@@ -23,6 +28,11 @@ router.use(protect, requireSuperadmin);
 router.get("/restaurants", listRestaurants);
 router.post("/restaurants", createRestaurantWithOwner);
 router.patch("/restaurants/:id", updateRestaurantOwner);
+router.patch("/restaurants/:id/owner/status", setRestaurantOwnerStatus);
+router.delete("/restaurants/:id/owner", deleteRestaurantOwnerCredentials);
+router.get("/admins", listAdminAccounts);
+router.post("/admins", createAdminAccount);
+router.delete("/admins/:id", deleteAdminAccount);
 
 // Cafe multi-tenant endpoints
 router.get('/cafes', listCafes);
