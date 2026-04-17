@@ -9,6 +9,12 @@ const storeSettingsSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    cafeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Cafe',
+      default: null,
+      index: true,
+    },
     profitMargin: {
       type: Number,
       default: 0.4,

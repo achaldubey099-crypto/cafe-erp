@@ -21,22 +21,33 @@ const verifyToken = (req) => {
 };
 
 
-// 🔐 PROTECT (any logged-in user)
-const protect = (req, res, next) => {
+// 🔐 CHECK AUTH - attach userId, cafeId, role to request
+const checkAuth = (req, res, next) => {
   const decoded = verifyToken(req);
 
   if (!decoded) {
-    return res.status(401).json({ message: "Not authorized, invalid or missing token" });
+    return res.status(401).json({ message: "No token provided or token invalid" });
   }
 
+  // normalized fields
   req.user = decoded;
+  req.userId = decoded.userId || decoded.id || null;
+  req.role = decoded.role || null;
+  req.cafeId = decoded.cafeId || decoded.restaurantId || null;
+
   next();
 };
+
+// 🔐 PROTECT (any logged-in user) - alias to checkAuth
+const protect = (req, res, next) => checkAuth(req, res, next);
 
 // 🔓 OPTIONAL PROTECT (attach user if token exists, but do not require it)
 const optionalProtect = (req, res, next) => {
   const decoded = verifyToken(req);
   req.user = decoded || null;
+  req.userId = decoded?.userId || decoded?.id || null;
+  req.role = decoded?.role || null;
+  req.cafeId = decoded?.cafeId || decoded?.restaurantId || null;
   next();
 };
 
@@ -53,8 +64,13 @@ const protectAdmin = (req, res, next) => {
     return res.status(403).json({ message: "Access denied, owner or superadmin only" });
   }
 
+  // attach normalized fields
   req.user = decoded;
+  req.userId = decoded.userId || decoded.id || null;
+  req.role = decoded.role || null;
+  req.cafeId = decoded.cafeId || decoded.restaurantId || null;
+
   next();
 };
 
-module.exports = { protect, optionalProtect, protectAdmin, ADMIN_ROLES };
+module.exports = { checkAuth, protect, optionalProtect, protectAdmin, ADMIN_ROLES };

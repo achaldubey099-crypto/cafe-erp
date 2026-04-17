@@ -1,3 +1,40 @@
+const Cafe = require('../models/Cafe');
+
+// Attach cafeId to request based on JWT payload or user fields
+const attachCafe = async (req, res, next) => {
+  try {
+    // prefer explicit cafeId on req.user
+    const user = req.user || {};
+    const cafeId = user.cafeId || user.restaurantId || null;
+
+    if (!cafeId) {
+      req.cafeId = null;
+      return next();
+    }
+
+    // verify cafe exists
+    const cafe = await Cafe.findById(cafeId).lean();
+    if (!cafe) {
+      req.cafeId = null;
+      return next();
+    }
+
+    req.cafe = cafe;
+    req.cafeId = cafe._id;
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Helper to restrict mongoose queries to current cafe
+const restrictFilter = (req, filter = {}) => {
+  const cafeId = req.cafeId || (req.user && (req.user.cafeId || req.user.restaurantId));
+  if (!cafeId) return filter;
+  return { ...filter, cafeId };
+};
+
+// legacy Restaurant/Table helpers (kept here for tenant resolution)
 const Restaurant = require("../models/Restaurant");
 const Table = require("../models/Table");
 
@@ -67,4 +104,10 @@ const resolveTenantContext = async (req, res, next) => {
   }
 };
 
-module.exports = { resolveTenantContext, extractTenantKeys };
+// Export all helpers for tenant management
+module.exports = {
+  attachCafe,
+  restrictFilter,
+  extractTenantKeys,
+  resolveTenantContext,
+};

@@ -7,6 +7,12 @@ const menuSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    cafeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cafe',
+        default: null,
+        index: true,
+    },
     name: {
         type: String,
         required: true

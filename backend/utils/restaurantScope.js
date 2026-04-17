@@ -1,6 +1,15 @@
 const Restaurant = require("../models/Restaurant");
 
 const ensureRestaurantForUser = async (req) => {
+  // If request has cafeId from JWT, prefer it and resolve linked Restaurant
+  if (req.cafeId) {
+    const Cafe = require('../models/Cafe');
+    const cafe = await Cafe.findById(req.cafeId).lean();
+    if (cafe && cafe.restaurantRef) {
+      return { restaurantId: cafe.restaurantRef, restaurant: null };
+    }
+  }
+
   if (req.user?.role === "owner" && req.user.restaurantId) {
     return { restaurantId: req.user.restaurantId, restaurant: null };
   }

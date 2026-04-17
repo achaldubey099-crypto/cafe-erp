@@ -11,9 +11,10 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateToken = (user) => {
   return jwt.sign(
     {
-      id: user._id,
+      userId: String(user._id),
       role: user.role,
-      restaurantId: user.restaurantId || null,
+      // include cafeId for multi-tenant routing (falls back to legacy restaurantId)
+      cafeId: user.cafeId || user.restaurantId || null,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -27,10 +28,10 @@ const serializeUser = (user, restaurant = null) => ({
   email: user.email,
   role: user.role,
   avatar: user.avatar || "",
-  restaurantId: restaurant?._id || user.restaurantId || null,
-  restaurantPublicId: restaurant?.publicRestaurantId || null,
-  restaurantName: restaurant?.brandName || "",
-  restaurantLogo: restaurant?.logoUrl || "",
+  cafeId: user.cafeId || restaurant?._id || user.restaurantId || null,
+  cafePublicId: restaurant?.publicRestaurantId || null,
+  cafeName: restaurant?.brandName || "",
+  cafeLogo: restaurant?.logoUrl || "",
 });
 
 

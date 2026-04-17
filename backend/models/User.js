@@ -45,9 +45,18 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
 
+    // legacy restaurant link (kept for backward compatibility)
     restaurantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Restaurant",
+      default: null,
+      index: true,
+    },
+
+    // new multi-tenant cafe reference
+    cafeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cafe",
       default: null,
       index: true,
     },

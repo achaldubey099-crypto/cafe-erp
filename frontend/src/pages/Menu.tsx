@@ -8,7 +8,7 @@ import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { getPublicTableId } from "../lib/tenant";
+import { getPublicTableId, getPublicRestaurantId } from "../lib/tenant";
 
 interface FavoriteResponse {
   _id: string;
@@ -53,27 +53,77 @@ export default function Menu() {
   useEffect(() => {
   const fetchProducts = async () => {
     try {
-      // 🔍 Debug: log actual API base URL
-      console.log("API BASE URL:", API.defaults.baseURL);
-      console.log("Calling:", `${API.defaults.baseURL}/menu`);
+      // 🔍 Debug fetch: build explicit backend URL and query params
+      // Resolve restaurant/table id from multiple possible sources
+      const searchParams = new URLSearchParams(window.location.search);
+      const publicRestaurantFromSearch = searchParams.get('restaurant') || searchParams.get('restaurantId') || searchParams.get('r');
+      const publicTableFromSearch = searchParams.get('table') || searchParams.get('tableId') || searchParams.get('t');
 
-      const res = await API.get<{
-        restaurant: { brandName: string; logoUrl?: string };
-        table: { label: string };
-        featuredItem?: Product | null;
-        menu: Product[];
-      }>("/menu/access");
+      const publicRestaurant =
+        getPublicRestaurantId() ||
+        publicRestaurantFromSearch ||
+        localStorage.getItem('restaurantPublicId') ||
+        null;
 
-      console.log("✅ API Response:", res.data);
+      const publicTable =
+        getPublicTableId() ||
+        publicTableFromSearch ||
+        localStorage.getItem('tablePublicId') ||
+        null;
 
-      setProducts(res.data.menu || []);
-      setRestaurantName(res.data.restaurant?.brandName || "Cafe");
-      setRestaurantLogo(res.data.restaurant?.logoUrl || "");
-      setTableLabel(res.data.table?.label || "");
+      console.log('Resolved Tenant IDs -> restaurant:', publicRestaurant, 'table:', publicTable);
 
-      // 🔥 Extract unique categories
+      const restaurantId = publicRestaurant;
+      console.log('Restaurant ID:', restaurantId);
+      if (!restaurantId) {
+        console.error('No restaurantId found in URL/localStorage/hash');
+      }
+
+      const hostname = window.location.hostname || 'localhost';
+      const backendPort = 5001; // backend runs on 5001 in this project
+      const url = new URL(`http://${hostname}:${backendPort}/api/menu/access`);
+      // include both parameter names to be compatible with different backends
+      if (publicRestaurant) {
+        url.searchParams.set('restaurant', publicRestaurant);
+        url.searchParams.set('restaurantId', publicRestaurant);
+      }
+      if (publicTable) {
+        url.searchParams.set('table', publicTable);
+        url.searchParams.set('tableId', publicTable);
+      }
+
+      console.log('DEBUG: Fetching menu from URL ->', url.toString());
+
+      // Raw fetch to capture exact response (status + body)
+      const res = await fetch(url.toString(), { method: 'GET' });
+
+      console.log('STATUS:', res.status);
+
+      const text = await res.text();
+      console.log('RAW RESPONSE:', text);
+
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error('JSON PARSE ERROR:', err);
+        throw new Error('Response is not valid JSON');
+      }
+
+      console.log('PARSED DATA:', data);
+
+      const menuData = Array.isArray(data) ? data : data.menu || data.menuItems || [];
+
+      console.log('FINAL MENU DATA:', menuData);
+
+      setProducts(menuData);
+      setRestaurantName(data.restaurant?.brandName || 'Cafe');
+      setRestaurantLogo(data.restaurant?.logoUrl || '');
+      setTableLabel(data.table?.label || '');
+
+      // 🔥 Extract unique categories from the resolved menu data
       const uniqueCategories = [
-        ...new Set((res.data.menu || []).map((item) => item.category))
+        ...new Set((menuData || []).map((item: any) => item.category))
       ].sort();
 
       // 🔥 Add "All" category

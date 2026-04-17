@@ -4,6 +4,9 @@ const {
   listRestaurants,
   createRestaurantWithOwner,
   updateRestaurantOwner,
+  listCafes,
+  updateCafe,
+  createCafe,
 } = require("../controller/superadminController");
 
 const router = express.Router();
@@ -20,5 +23,10 @@ router.use(protect, requireSuperadmin);
 router.get("/restaurants", listRestaurants);
 router.post("/restaurants", createRestaurantWithOwner);
 router.patch("/restaurants/:id", updateRestaurantOwner);
+
+// Cafe multi-tenant endpoints
+router.get('/cafes', listCafes);
+router.post('/cafes', createCafe);
+router.patch('/cafes/:id', updateCafe);
 
 module.exports = router;

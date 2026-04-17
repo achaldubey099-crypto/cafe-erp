@@ -41,6 +41,10 @@ app.use(cors({
 // ✅ Body Parser
 app.use(express.json());
 
+// Attach cafe info when token present (adds req.cafe and req.cafeId)
+const { attachCafe } = require('./middleware/tenant');
+app.use(attachCafe);
+
 // ================= ROUTES =================
 
 // Existing Routes
@@ -63,6 +67,22 @@ const superadminRoutes = require('./routes/superadminRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const { startSubscriptionWatcher } = require('./utils/subscriptionWatcher');
+
+// Debug: log types of imported routers/middleware to detect import/export mismatches
+console.log('TYPE menuRoutes:', typeof menuRoutes);
+console.log('TYPE orderRoutes:', typeof orderRoutes);
+console.log('TYPE categoryRoutes:', typeof categoryRoutes);
+console.log('TYPE feedbackRoutes:', typeof feedbackRoutes);
+console.log('TYPE favoriteRoutes:', typeof favoriteRoutes);
+console.log('TYPE paymentRoutes:', typeof paymentRoutes);
+console.log('TYPE authRoutes:', typeof authRoutes);
+console.log('TYPE adminRoutes:', typeof adminRoutes);
+console.log('TYPE adminOrderRoutes:', typeof adminOrderRoutes);
+console.log('TYPE superadminRoutes:', typeof superadminRoutes);
+console.log('TYPE staffRoutes:', typeof staffRoutes);
+console.log('TYPE analyticsRoutes:', typeof analyticsRoutes);
+console.log('TYPE inventoryRoutes:', typeof inventoryRoutes);
 
 // ================= API ROUTES =================
 app.use("/api/payment", paymentRoutes);
@@ -110,4 +130,10 @@ const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+        // start subscription watcher (non-blocking)
+        try {
+            startSubscriptionWatcher();
+        } catch (err) {
+            console.error('Failed to start subscription watcher', err);
+        }
 });

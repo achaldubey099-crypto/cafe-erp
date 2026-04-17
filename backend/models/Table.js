@@ -9,6 +9,12 @@ const tableSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    cafeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Cafe',
+      default: null,
+      index: true,
+    },
     label: {
       type: String,
       required: true,

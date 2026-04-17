@@ -130,6 +130,12 @@ const orderSchema = new mongoose.Schema(
       unique: true,
       default: null, // ✅ FIX: prevent crash if not provided
     },
+    cafeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Cafe',
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true }
 );

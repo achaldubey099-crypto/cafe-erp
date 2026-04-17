@@ -43,6 +43,9 @@ exports.getPublicMenu = async (req, res) => {
     const restaurant = req.tenant?.restaurant;
     const table = req.tenant?.table;
 
+    // Debug log to trace which tenant keys are being used
+    console.log('Fetching public menu for restaurantPublicId:', req.query.restaurant || req.body?.restaurant || req.tenant?.restaurant?.publicRestaurantId || req.cafeId, 'tablePublicId:', req.query.table || req.body?.table || req.tenant?.table?.publicTableId);
+
     if (!restaurant || !table) {
       return res.status(400).json({ message: "Restaurant and table access are required" });
     }
