@@ -106,8 +106,23 @@ export default function Checkout() {
         return;
       }
 
+      const activeSessionId = sessionId || getOrCreateTenantSessionId();
+      if (!activeSessionId) {
+        showNotice({
+          kind: "error",
+          title: "Session Missing",
+          message: "We could not bind this order to your table session. Please reopen the menu from the table QR and try again.",
+          actionLabel: "Got It",
+        });
+        return;
+      }
+
+      if (activeSessionId !== sessionId) {
+        setSessionId(activeSessionId);
+      }
+
       const orderData = {
-        sessionId,
+        sessionId: activeSessionId,
         userId: customer?._id,
         items: cart.map((item, index) => ({
           itemId: index + 1,

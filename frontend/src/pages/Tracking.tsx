@@ -17,6 +17,8 @@ interface SubmitFeedbackResponse {
 }
 
 const ACTIVE_STATUSES = ['pending', 'preparing', 'ready'] as const;
+const RECENTLY_VISIBLE_STATUSES = ['completed', 'cancelled'] as const;
+const COMPLETED_VISIBILITY_MS = 2 * 60 * 1000;
 
 const formatClockTime = (value?: string | null) => {
   if (!value) return null;
@@ -50,6 +52,31 @@ const toStatusLabel = (status?: Order['status']) => {
   }
 };
 
+const shouldKeepOrderVisible = (order: Order) => {
+  if (ACTIVE_STATUSES.includes(order.status as typeof ACTIVE_STATUSES[number])) {
+    return true;
+  }
+
+  if (!RECENTLY_VISIBLE_STATUSES.includes(order.status as typeof RECENTLY_VISIBLE_STATUSES[number])) {
+    return false;
+  }
+
+  const completedAtMs = order.completedAt ? new Date(order.completedAt).getTime() : 0;
+  if (!completedAtMs) {
+    return true;
+  }
+
+  return Date.now() - completedAtMs <= COMPLETED_VISIBILITY_MS;
+};
+
+const belongsToCustomer = (order: Order | null, customerId?: string) => {
+  if (!order || !customerId || !order.userId) {
+    return false;
+  }
+
+  return String(order.userId) === String(customerId);
+};
+
 export default function Tracking() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,20 +96,29 @@ export default function Tracking() {
   const [error, setError] = useState('');
   const hasLoadedOnceRef = useRef(false);
 
+  const visibleOrders = useMemo(
+    () => orders.filter(shouldKeepOrderVisible),
+    [orders]
+  );
+
   const selectedOrder = useMemo(
-    () => orders.find((item) => item._id === selectedOrderId) || orders[0] || null,
-    [orders, selectedOrderId]
+    () => visibleOrders.find((item) => item._id === selectedOrderId) || visibleOrders[0] || null,
+    [visibleOrders, selectedOrderId]
   );
 
   const activeOrders = useMemo(
-    () => orders.filter((item) => ACTIVE_STATUSES.includes(item.status as typeof ACTIVE_STATUSES[number])),
-    [orders]
+    () => visibleOrders.filter((item) => ACTIVE_STATUSES.includes(item.status as typeof ACTIVE_STATUSES[number])),
+    [visibleOrders]
+  );
+
+  const canReviewSelectedOrder = useMemo(
+    () => belongsToCustomer(selectedOrder, customer?._id),
+    [selectedOrder, customer?._id]
   );
 
   useEffect(() => {
     const tenant = getTenantContext();
     const boundTableId = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
-    const boundSessionId = getOrCreateTenantSessionId();
 
     const fetchOrders = async () => {
       if (!boundTableId) {
@@ -100,14 +136,12 @@ export default function Tracking() {
         }
         setError('');
 
-        const params: Record<string, string> = { activeOnly: 'true' };
-        if (boundSessionId) {
-          params.sessionId = boundSessionId;
-        }
+        // Keep the tenant session alive for checkout, but track the whole table here.
+        getOrCreateTenantSessionId();
 
-        const res = await API.get<Order[]>('/orders/table', { params });
-        const nextOrders = (res.data || []).filter((item) =>
-          ACTIVE_STATUSES.includes(item.status as typeof ACTIVE_STATUSES[number])
+        const res = await API.get<Order[]>('/orders/table');
+        const nextOrders = (res.data || []).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setOrders(nextOrders);
         hasLoadedOnceRef.current = true;
@@ -127,26 +161,30 @@ export default function Tracking() {
   }, [location.pathname, location.hash, location.search]);
 
   useEffect(() => {
-    if (!orders.length) {
+    if (!visibleOrders.length) {
       setSelectedOrderId(null);
       return;
     }
 
-    const currentStillExists = selectedOrderId && orders.some((item) => item._id === selectedOrderId);
+    const currentStillExists = selectedOrderId && visibleOrders.some((item) => item._id === selectedOrderId);
     if (currentStillExists) {
       return;
     }
 
-    const nextSelection = activeOrders[0] || null;
+    const ownActiveOrder = activeOrders.find((item) => belongsToCustomer(item, customer?._id));
+    const ownVisibleOrder = visibleOrders.find((item) => belongsToCustomer(item, customer?._id));
+    const nextSelection = ownActiveOrder || ownVisibleOrder || activeOrders[0] || visibleOrders[0] || null;
     setSelectedOrderId(nextSelection?._id || null);
-  }, [orders, activeOrders, selectedOrderId]);
+  }, [visibleOrders, activeOrders, selectedOrderId, customer?._id]);
 
   useEffect(() => {
     const loadFeedback = async () => {
-      if (!selectedOrder?._id || !customer) {
+      if (!selectedOrder?._id || !customer || !canReviewSelectedOrder) {
         setFeedback(null);
         setRating(0);
         setComment('');
+        setReviewError('');
+        setReviewMessage('');
         return;
       }
 
@@ -166,7 +204,7 @@ export default function Tracking() {
     };
 
     loadFeedback();
-  }, [customer, selectedOrder?._id]);
+  }, [customer, selectedOrder?._id, canReviewSelectedOrder]);
 
   const submitReview = async () => {
     if (!selectedOrder?._id) {
@@ -175,7 +213,13 @@ export default function Tracking() {
     }
 
     if (!customer) {
+      setReviewError('Please login to give feedback.');
       navigate('/login?returnTo=/orders');
+      return;
+    }
+
+    if (!canReviewSelectedOrder) {
+      setReviewError('You can only review orders placed from your logged-in account.');
       return;
     }
 
@@ -196,7 +240,7 @@ export default function Tracking() {
       });
 
       setFeedback(res.data.feedback);
-      setReviewMessage(feedback ? 'Review updated. Thank you.' : 'Review submitted. Thank you.');
+      setReviewMessage(res.data.message || (feedback ? 'Feedback updated successfully.' : 'Feedback submitted successfully.'));
     } catch (err: any) {
       console.error(err);
       setReviewError(err?.response?.data?.message || 'Failed to submit your review');
@@ -238,23 +282,23 @@ export default function Tracking() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-secondary">Your Orders</p>
               <h2 className="font-headline text-xl font-extrabold text-primary">
-                {`${activeOrders.length} active order${activeOrders.length === 1 ? '' : 's'}`}
+                {`${visibleOrders.length} visible order${visibleOrders.length === 1 ? '' : 's'}`}
               </h2>
             </div>
             <div className="rounded-2xl bg-surface-container-low px-3 py-2 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-secondary">Active</p>
-              <p className="font-headline text-lg font-extrabold text-on-surface">{activeOrders.length}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-secondary">Table</p>
+              <p className="font-headline text-lg font-extrabold text-on-surface">{visibleOrders.length}</p>
             </div>
           </div>
 
           <div className="mt-4 space-y-3">
-            {hasLoadedOnceRef.current && activeOrders.length === 0 && (
+            {hasLoadedOnceRef.current && visibleOrders.length === 0 && (
               <div className="rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-secondary">
-                No pending, preparing, or ready orders right now.
+                No recent orders found for this table right now.
               </div>
             )}
 
-            {activeOrders.map((item) => {
+            {visibleOrders.map((item) => {
               const selected = item._id === selectedOrder?._id;
               return (
                 <button
@@ -403,10 +447,10 @@ export default function Tracking() {
             </div>
             <div>
               <h3 className="font-headline font-bold text-on-primary-container">
-                {selectedOrder ? `Order total ₹${selectedOrder.grandTotal.toFixed(2)}` : 'No order selected'}
+                {selectedOrder ? `Order total Rs ${selectedOrder.grandTotal.toFixed(2)}` : 'No order selected'}
               </h3>
               <p className="text-xs text-on-primary-container/80">
-                {activeOrders.length > 1 ? `${activeOrders.length} active orders at the same time` : 'Each active order keeps its own timeline'}
+                {visibleOrders.length > 1 ? `${visibleOrders.length} orders are visible for this table` : 'Each table order keeps its own timeline'}
               </p>
             </div>
           </div>
@@ -461,7 +505,7 @@ export default function Tracking() {
                 key={star}
                 type="button"
                 onClick={() => setRating(star)}
-                disabled={!selectedOrder}
+                disabled={!selectedOrder || !customer || !canReviewSelectedOrder}
                 className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-surface-container transition-all active:scale-90 disabled:opacity-40"
                 aria-label={`Rate ${star} star${star === 1 ? '' : 's'}`}
               >
@@ -477,10 +521,22 @@ export default function Tracking() {
             <textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
-              disabled={!selectedOrder}
+              disabled={!selectedOrder || !customer || !canReviewSelectedOrder}
               className="w-full bg-surface-container-highest border-none rounded-2xl p-4 text-sm font-body text-on-surface focus:ring-2 focus:ring-primary/40 min-h-[120px] transition-all outline-none resize-none"
-              placeholder="Tell us about your coffee..."
+              placeholder={!customer ? 'Please login to give feedback.' : !canReviewSelectedOrder ? 'You can review only your own orders.' : 'Tell us about your coffee...'}
             />
+
+            {!customer && selectedOrder && (
+              <p className="rounded-2xl bg-amber-50 border border-amber-100 p-3 text-sm text-amber-700">
+                Please login to give feedback.
+              </p>
+            )}
+
+            {customer && selectedOrder && !canReviewSelectedOrder && (
+              <p className="rounded-2xl bg-amber-50 border border-amber-100 p-3 text-sm text-amber-700">
+                You can review only orders placed from your logged-in account.
+              </p>
+            )}
 
             {reviewError && (
               <p className="rounded-2xl bg-red-50 border border-red-100 p-3 text-sm text-red-600">
@@ -497,16 +553,19 @@ export default function Tracking() {
             {!customer ? (
               <button
                 type="button"
-                onClick={() => navigate('/login?returnTo=/orders')}
+                onClick={() => {
+                  setReviewError('Please login to give feedback.');
+                  navigate('/login?returnTo=/orders');
+                }}
                 className="w-full bg-primary text-on-primary font-headline font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform"
               >
-                Login to Review
+                Login to Give Feedback
               </button>
             ) : (
               <button
                 type="button"
                 onClick={submitReview}
-                disabled={!selectedOrder || rating === 0 || savingReview}
+                disabled={!selectedOrder || rating === 0 || savingReview || !canReviewSelectedOrder}
                 className="w-full bg-gradient-to-br from-primary to-primary-container text-on-primary font-headline font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-60 disabled:active:scale-100"
               >
                 {savingReview ? 'Saving Review...' : feedback ? 'Update Review' : 'Submit Review'}

@@ -64,3 +64,16 @@ export function getTableId() {
 
   return null;
 }
+
+export function setTableId(tableId: number | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!tableId || !Number.isFinite(tableId) || tableId <= 0) {
+    localStorage.removeItem(TABLE_STORAGE_KEY);
+    return;
+  }
+
+  localStorage.setItem(TABLE_STORAGE_KEY, String(Math.trunc(tableId)));
+}

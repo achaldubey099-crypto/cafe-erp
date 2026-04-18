@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const { ADMIN_ROLES } = require("../middleware/auth");
 const { ensureRestaurantForUser } = require('../utils/restaurantScope');
 
 const PAYMENT_METHOD_MAP = {
@@ -131,12 +132,25 @@ exports.createOrder = async (req, res) => {
 // ================= GET ALL ORDERS (ADMIN) =================
 exports.getOrders = async (req, res) => {
     try {
+        if (!req.userId) {
+            return res.status(401).json({ message: "Authentication is required" });
+        }
+
         const { userId } = req.query;
         const { restaurantId } = await ensureRestaurantForUser(req);
+        const isAdmin = ADMIN_ROLES.includes(req.user?.role);
 
         const filter = {};
-        if (userId) filter.userId = userId;
-        if (restaurantId) filter.restaurantId = restaurantId;
+        if (isAdmin) {
+            if (userId) filter.userId = userId;
+            if (restaurantId) filter.restaurantId = restaurantId;
+        } else {
+            if (userId && String(userId) !== String(req.userId)) {
+                return res.status(403).json({ message: "Cannot access another customer's orders" });
+            }
+
+            filter.userId = req.userId;
+        }
 
         const orders = await Order.find(filter)
             .sort({ createdAt: -1 }); // ✅ latest first
@@ -218,6 +232,7 @@ exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+        const { restaurantId } = await ensureRestaurantForUser(req);
 
         const validStatuses = ["pending", "preparing", "ready", "completed", "cancelled"];
 
@@ -227,6 +242,16 @@ exports.updateOrderStatus = async (req, res) => {
 
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ message: "Invalid status" });
+        }
+
+        const existingOrder = await Order.findById(id);
+
+        if (!existingOrder) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        if (restaurantId && String(existingOrder.restaurantId) !== String(restaurantId)) {
+            return res.status(403).json({ message: "Cannot update another restaurant's order" });
         }
 
         const update = { status };
@@ -244,10 +269,6 @@ exports.updateOrderStatus = async (req, res) => {
         }
 
         const order = await Order.findByIdAndUpdate(id, update, { new: true });
-
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
 
         res.json({
             message: "Order status updated",

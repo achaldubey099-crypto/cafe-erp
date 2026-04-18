@@ -70,7 +70,7 @@ export default function AdminPOS() {
       setError("");
 
       const [ordersRes, menuRes] = await Promise.all([
-        API.get<PosOrder[]>("/orders"),
+        API.get<PosOrder[]>("/admin/orders/active"),
         API.get<Product[]>("/menu"),
       ]);
 
@@ -99,6 +99,12 @@ export default function AdminPOS() {
 
   useEffect(() => {
     loadPosData();
+
+    const interval = window.setInterval(() => {
+      loadPosData();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   const tables = useMemo(() => {

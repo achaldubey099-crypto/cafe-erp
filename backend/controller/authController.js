@@ -31,9 +31,13 @@ const serializeUser = (user, restaurant = null) => ({
   status: user.status || "active",
   avatar: user.avatar || "",
   cafeId: user.cafeId || restaurant?._id || user.restaurantId || null,
+  restaurantId: user.restaurantId || restaurant?._id || null,
   cafePublicId: restaurant?.publicRestaurantId || null,
+  restaurantPublicId: restaurant?.publicRestaurantId || null,
   cafeName: restaurant?.brandName || "",
+  restaurantName: restaurant?.brandName || "",
   cafeLogo: restaurant?.logoUrl || "",
+  restaurantLogo: restaurant?.logoUrl || "",
 });
 
 

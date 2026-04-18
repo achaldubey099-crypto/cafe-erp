@@ -1,43 +1,32 @@
 const express = require("express");
+const Order = require("../models/Order");
 const {
+  deleteOrder,
   getLiveOrders,
-  updateOrderStatus,
   getPastOrders,
+  updateOrderStatus,
 } = require("../controller/adminOrderController");
 const { protectAdmin } = require("../middleware/auth");
-const Order = require("../models/Order");
+const { ensureRestaurantForUser } = require("../utils/restaurantScope");
 
 const router = express.Router();
 
-// 🔥 LIVE ORDERS (Queue + Filter + Sort)
 router.get("/live", protectAdmin, getLiveOrders);
-
-// 🔄 UPDATE ORDER STATUS
 router.put("/:id/status", protectAdmin, updateOrderStatus);
-
-// 📜 PAST ORDERS (with pagination)
 router.get("/history", protectAdmin, getPastOrders);
+router.delete("/:id", protectAdmin, deleteOrder);
 
-// ➖ DELETE ORDER
-router.delete("/:id", protectAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const order = await Order.findById(id);
-    if (!order) return res.status(404).json({ message: "Order not found" });
-    await order.deleteOne();
-    res.json({ message: "Order deleted" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// 🔍 GET SINGLE ORDER DETAILS
 router.get("/:id", protectAdmin, async (req, res) => {
   try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
     const order = await Order.findById(req.params.id);
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (restaurantId && String(order.restaurantId) !== String(restaurantId)) {
+      return res.status(403).json({ message: "Cannot access another restaurant's order" });
     }
 
     res.json(order);

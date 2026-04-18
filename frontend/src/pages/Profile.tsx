@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Edit2, Stars, ChevronRight, RotateCcw, Apple, Settings, LogIn, LogOut } from 'lucide-react';
+import { ArrowLeft, Edit2, Stars, ChevronRight, LogIn, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import API from '../lib/api';
 import { getTableId } from '../lib/table';
 import { Order } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { getCustomerMenuPath } from '../lib/tenant';
+import { getCustomerMenuPath, getTenantContext } from '../lib/tenant';
 
 interface ProfileResponse {
   user: {
@@ -88,7 +88,9 @@ export default function Profile() {
   };
 
   const userName = isLoggedIn ? (customer.name || 'User') : (profile?.user?.name || 'Guest User');
-  const tableId = profile?.user?.tableId ?? getTableId();
+  const tenant = getTenantContext();
+  const tableId = getTableId();
+  const tableLabel = tenant.tableSlug || tenant.tableAccessKey || tenant.tablePublicId;
   const points = profile?.points ?? 0;
   const totalSpent = profile?.totalSpent ?? 0;
   const pastOrders = profile?.pastOrders || [];
@@ -154,7 +156,7 @@ export default function Profile() {
               {loading ? 'Loading...' : userName}
             </h2>
             <p className="font-body text-on-surface-variant text-sm mt-1">
-              {tableId ? `Table #${tableId}` : 'Scan your table QR to bind this device'}
+              {tableId ? `Table #${tableId}` : tableLabel ? 'Protected table access active' : 'Scan your table QR to bind this device'}
             </p>
           </div>
           {isLoggedIn ? (
@@ -265,9 +267,6 @@ export default function Profile() {
                         </p>
                         <p className="font-headline font-bold text-primary">₹{order.grandTotal.toFixed(2)}</p>
                       </div>
-                      <button className="bg-primary text-on-primary p-2 rounded-xl active:scale-90 transition-all">
-                        <RotateCcw size={18} />
-                      </button>
                     </div>
                   </div>
                 ))
@@ -277,20 +276,6 @@ export default function Profile() {
             </div>
           </section>
         )}
-
-        {/* Settings */}
-        <section className="space-y-2">
-
-          <div className="bg-surface-container-highest/30 p-4 rounded-2xl flex items-center justify-between group cursor-pointer active:bg-surface-container-high transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
-                <Settings size={20} className="text-secondary" />
-              </div>
-              <p className="font-body font-semibold text-on-surface">Account Settings</p>
-            </div>
-            <ChevronRight size={20} className="text-on-surface-variant group-hover:translate-x-1 transition-transform" />
-          </div>
-        </section>
 
         {/* Logout */}
         {isLoggedIn && (

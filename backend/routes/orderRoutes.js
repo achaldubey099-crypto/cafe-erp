@@ -10,7 +10,7 @@ const {
     updateOrderStatus,
     getProfileData
 } = require('../controller/orderController');
-const { optionalProtect } = require('../middleware/auth');
+const { optionalProtect, protect, protectAdmin } = require('../middleware/auth');
 
 
 // ================= USER ROUTES =================
@@ -31,10 +31,10 @@ router.get('/profile', resolveTenantContext, getProfileData);
 // ================= ADMIN ROUTES =================
 
 // Get All Orders (Admin Panel)
-router.get('/', getOrders);
+router.get('/', protect, getOrders);
 
 // Update Order Status (Kitchen Flow)
-router.put('/:id', updateOrderStatus);
+router.put('/:id', protectAdmin, updateOrderStatus);
 
 
 module.exports = router;

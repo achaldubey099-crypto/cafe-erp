@@ -1,14 +1,23 @@
 const Order = require("../models/Order");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
 
+const assertRestaurantOwnership = (order, restaurantId, action) => {
+  if (restaurantId && String(order.restaurantId) !== String(restaurantId)) {
+    return {
+      message: `Cannot ${action} another restaurant's order`,
+      status: 403,
+    };
+  }
 
-// ✅ 1. LIVE ORDERS (Queue Management + Filter + Sort)
+  return null;
+};
+
 const getLiveOrders = async (req, res) => {
   try {
     const { status, sortBy } = req.query;
     const { restaurantId } = await ensureRestaurantForUser(req);
 
-    let filter = {
+    const filter = {
       status: { $in: ["pending", "preparing", "ready"] },
     };
 
@@ -16,82 +25,51 @@ const getLiveOrders = async (req, res) => {
       filter.restaurantId = restaurantId;
     }
 
-    // 🔍 Optional filter
     if (status) {
       filter.status = status;
     }
 
-    // 🔽 Sorting logic
-    let sort = { createdAt: 1 }; // oldest first (queue)
-
-    if (sortBy === "newest") {
-      sort = { createdAt: -1 };
-    }
-
+    const sort = sortBy === "newest" ? { createdAt: -1 } : { createdAt: 1 };
     const orders = await Order.find(filter).sort(sort);
 
-    const formattedOrders = orders.map((order) => {
-      const waitTime = Math.floor(
-        (Date.now() - order.createdAt) / 60000
-      );
+    const formattedOrders = orders.map((order) => ({
+      ...order._doc,
+      waitTime: `${Math.floor((Date.now() - order.createdAt) / 60000)}m`,
+    }));
 
-      return {
-        ...order._doc,
-        waitTime: `${waitTime}m`,
-      };
-    });
-
-    res.json({
-      total: formattedOrders.length,
-      orders: formattedOrders,
-    });
-
+    res.json(formattedOrders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-
-// ✅ 2. UPDATE ORDER STATUS (Improved + Safe)
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const { restaurantId } = await ensureRestaurantForUser(req);
 
-    const allowedStatuses = [
-      "pending",
-      "preparing",
-      "ready",
-      "completed",
-      "cancelled",
-    ];
+    const allowedStatuses = ["pending", "preparing", "ready", "completed", "cancelled"];
 
-    // 🚨 Validate status
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        message: "Invalid status value",
-      });
+      return res.status(400).json({ message: "Invalid status value" });
     }
 
     const order = await Order.findById(req.params.id);
 
     if (!order) {
-      return res.status(404).json({
-        message: "Order not found",
-      });
+      return res.status(404).json({ message: "Order not found" });
     }
 
-    // ⛔ Prevent updating completed/cancelled orders
+    const ownershipError = assertRestaurantOwnership(order, restaurantId, "update");
+    if (ownershipError) {
+      return res.status(ownershipError.status).json({ message: ownershipError.message });
+    }
+
     if (["completed", "cancelled"].includes(order.status)) {
-      return res.status(400).json({
-        message: "Order already finalized",
-      });
+      return res.status(400).json({ message: "Order already finalized" });
     }
 
-    // Build update payload and avoid document save() so old orders without
-    // orderNumber don't fail full-schema validation during status updates.
-    const updatePayload = {
-      status,
-    };
+    const updatePayload = { status };
 
     if (status === "preparing" && !order.startedAt) {
       updatePayload.startedAt = new Date();
@@ -101,7 +79,6 @@ const updateOrderStatus = async (req, res) => {
       updatePayload.completedAt = new Date();
     }
 
-    // Backfill missing orderNumber for legacy documents.
     if (!order.orderNumber) {
       updatePayload.orderNumber = await Order.getNextOrderNumber();
     }
@@ -116,23 +93,21 @@ const updateOrderStatus = async (req, res) => {
       message: "Order status updated successfully",
       order: updatedOrder,
     });
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-
-// ✅ 3. PAST ORDERS (with pagination support)
 const getPastOrders = async (req, res) => {
   try {
     const { restaurantId } = await ensureRestaurantForUser(req);
-    const page = parseInt(req.query.page) || 1;
+    const page = Number.parseInt(req.query.page, 10) || 1;
     const limit = 10;
 
     const historyFilter = {
       status: { $in: ["completed", "cancelled"] },
     };
+
     if (restaurantId) {
       historyFilter.restaurantId = restaurantId;
     }
@@ -150,36 +125,36 @@ const getPastOrders = async (req, res) => {
       totalOrders: total,
       orders,
     });
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+const deleteOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    const { restaurantId } = await ensureRestaurantForUser(req);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const ownershipError = assertRestaurantOwnership(order, restaurantId, "delete");
+    if (ownershipError) {
+      return res.status(ownershipError.status).json({ message: ownershipError.message });
+    }
+
+    await order.deleteOne();
+
+    res.json({ message: "Order deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   getLiveOrders,
   updateOrderStatus,
   getPastOrders,
-  // delete an order (admin)
-  deleteOrder: async (req, res) => {
-    try {
-      const order = await Order.findById(req.params.id);
-      const { restaurantId } = await ensureRestaurantForUser(req);
-
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      if (restaurantId && String(order.restaurantId) !== String(restaurantId)) {
-        return res.status(403).json({ message: "Cannot delete orders from another restaurant" });
-      }
-
-      await order.deleteOne();
-
-      res.json({ message: "Order deleted successfully" });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
+  deleteOrder,
 };

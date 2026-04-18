@@ -21,15 +21,33 @@ const normalizedApiOrigin = rawEnvApi
 
 const API = axios.create({
   baseURL: normalizedApiOrigin ? `${normalizedApiOrigin}/api` : "/api",
-  withCredentials: true, // 🔥 important for CORS & cookies (future-ready)
+  withCredentials: true,
 });
 
-// 🔐 Attach token automatically
+const ADMIN_PATH_PATTERN = /^\/?(admin|admin-orders|staff|analytics|inventory|superadmin)\b/;
+const ADMIN_SHARED_PATHS = [/^\/?menu\b/, /^\/?orders\b/];
+
+const isAdminShellPath = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return /^\/(admin|superadmin)(\/|$)/.test(window.location.pathname);
+};
+
+const shouldUseAdminSession = (url: string) => {
+  if (ADMIN_PATH_PATTERN.test(url)) {
+    return true;
+  }
+
+  return isAdminShellPath() && ADMIN_SHARED_PATHS.some((pattern) => pattern.test(url));
+};
+
 API.interceptors.request.use(
   (req: any) => {
     const url = req.url || "";
-    const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory|superadmin)\b/.test(url);
-    const token = adminPath
+    const useAdminSession = shouldUseAdminSession(url);
+    const token = useAdminSession
       ? localStorage.getItem("token")
       : localStorage.getItem("customerToken") || localStorage.getItem("token");
 
@@ -37,13 +55,14 @@ API.interceptors.request.use(
       req.headers.Authorization = `Bearer ${token}`;
     }
 
-    if (!adminPath && req.headers) {
+    if (!useAdminSession && req.headers) {
       const restaurantAccessKey = getRestaurantAccessKey();
       const tableAccessKey = getTableAccessKey();
       const restaurantSlug = getRestaurantSlug();
       const tableSlug = getTableSlug();
       const restaurant = getPublicRestaurantId();
       const table = getPublicTableId();
+
       if (restaurantAccessKey) req.headers["x-restaurant-access-key"] = restaurantAccessKey;
       if (tableAccessKey) req.headers["x-table-access-key"] = tableAccessKey;
       if (restaurantSlug) req.headers["x-restaurant-slug"] = restaurantSlug;
@@ -57,18 +76,14 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ⚠️ Global response error handler
 API.interceptors.response.use(
   (response) => response,
   (error: any) => {
-    // Handle unauthorized (token expired, etc.)
     if (error.response?.status === 401) {
-      console.warn("Unauthorized - logging out");
-
       const url = error.config?.url || "";
-      const adminPath = /^\/?(admin|admin-orders|staff|analytics|inventory|superadmin)\b/.test(url);
+      const useAdminSession = shouldUseAdminSession(url);
 
-      if (adminPath) {
+      if (useAdminSession) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         window.location.href = "/admin/login";

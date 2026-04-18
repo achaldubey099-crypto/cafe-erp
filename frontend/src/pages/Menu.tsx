@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import API from "../lib/api";
+import { setTableId } from "../lib/table";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -42,6 +43,7 @@ interface PublicMenuResponse {
   };
   table?: {
     label?: string;
+    tableNumber?: number;
     accessKey?: string;
     slug?: string;
     publicTableId?: string;
@@ -73,6 +75,7 @@ export default function Menu() {
   const [searchTerm, setSearchTerm] = useState("");
   const [restaurantName, setRestaurantName] = useState("Cafe");
   const [tableLabel, setTableLabel] = useState("");
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
 
   const { addToCart, removeFromCart, cart } = useCart();
   const { customer, logoutCustomer } = useAuth();
@@ -155,6 +158,10 @@ export default function Menu() {
         const resolvedRestaurantAccessKey =
           data.restaurant?.accessKey || tenant.restaurantAccessKey || restaurantAccessKey;
         const resolvedTableLabel = data.table?.label || "";
+        const resolvedTableNumber =
+          typeof data.table?.tableNumber === "number" && data.table.tableNumber > 0
+            ? data.table.tableNumber
+            : null;
 
         // If we somehow land in a protected menu route without a resolved table payload,
         // bounce back through the restaurant entry endpoint to recover the first valid table URL.
@@ -187,6 +194,8 @@ export default function Menu() {
         setProducts(menuData);
         setRestaurantName(data.restaurant?.brandName || "Cafe");
         setTableLabel(resolvedTableLabel);
+        setTableNumber(resolvedTableNumber);
+        setTableId(resolvedTableNumber);
 
         const uniqueCategories = [...new Set((menuData || []).map((item) => item.category))].sort();
         setCategories(["All", ...uniqueCategories]);
@@ -274,6 +283,8 @@ export default function Menu() {
 
  // 🔥 Filtering logic (FINAL FIXED)
 const featuredProduct = products.find((p) => p.isFeatured);
+const hasActiveSearch = searchTerm.trim().length > 0;
+const tableDisplay = tableNumber ? `Table #${tableNumber}` : tableLabel || (tableAccessKey ? "Protected Table Access" : "QR Ordering");
 
 // Combine category filtering with search (case-insensitive)
 const filteredProducts = products.filter((p) => {
@@ -306,7 +317,7 @@ const filteredProducts = products.filter((p) => {
   }
 
   return (
-    <div className="pb-32">
+    <div className="pb-44">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm">
         <div className="flex justify-between items-center px-6 py-4 w-full">
@@ -315,7 +326,7 @@ const filteredProducts = products.filter((p) => {
               {restaurantName}
             </h1>
             <span className="text-[10px] uppercase tracking-[0.2em] text-secondary font-semibold">
-              {tableLabel || (tableAccessKey ? "Protected Table Access" : "QR Ordering")}
+              {tableDisplay}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -348,7 +359,7 @@ const filteredProducts = products.filter((p) => {
           <section className="px-6 mb-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary">
               <span className="h-2 w-2 rounded-full bg-primary" />
-              {tableLabel || "Private table access active"}
+              {tableDisplay}
             </div>
           </section>
         )}
@@ -369,28 +380,8 @@ const filteredProducts = products.filter((p) => {
           </div>
         </section>
 
-        {/* Categories */}
-        <section className="mb-8">
-          <div className="flex overflow-x-auto hide-scrollbar gap-3 px-6">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={cn(
-                  "flex-none px-6 py-2.5 rounded-full font-headline font-bold text-sm transition-all active:scale-95",
-                  activeCategory === cat
-                    ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
-                    : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                )}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </section>
-
         {/* Featured */}
-        {featuredProduct && (
+        {featuredProduct && !hasActiveSearch && (
           <section className="px-6 mb-10">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -419,8 +410,28 @@ const filteredProducts = products.filter((p) => {
           </section>
         )}
 
+        {/* Categories */}
+        <section className="mb-8">
+          <div className="flex overflow-x-auto hide-scrollbar gap-3 px-6">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={cn(
+                  "flex-none px-6 py-2.5 rounded-full font-headline font-bold text-sm transition-all active:scale-95",
+                  activeCategory === cat
+                    ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
+                    : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Product Grid */}
-        <section className="px-6">
+        <section className="px-6 pb-20">
           <div className="flex items-end justify-between mb-6">
             <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
               {activeCategory} Menu
@@ -430,6 +441,13 @@ const filteredProducts = products.filter((p) => {
             </span>
           </div>
 
+          {filteredProducts.length === 0 ? (
+            <div className="rounded-3xl border border-outline/10 bg-white p-8 text-center text-sm text-secondary shadow-sm">
+              {hasActiveSearch
+                ? `No menu items found for "${searchTerm.trim()}".`
+                : `No menu items are available in ${activeCategory}.`}
+            </div>
+          ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-8">
             {filteredProducts.map((product, index) => (
               <motion.div
@@ -499,6 +517,7 @@ const filteredProducts = products.filter((p) => {
               </motion.div>
             ))}
           </div>
+          )}
         </section>
       </main>
 
