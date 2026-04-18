@@ -145,4 +145,18 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ restaurantId: 1, status: 1, createdAt: -1 });
 
+orderSchema.pre("validate", async function assignOrderNumber() {
+  if (!this.isNew || this.orderNumber) {
+    return;
+  }
+
+  const latestWithOrderNumber = await this.constructor
+    .findOne({ orderNumber: { $exists: true, $ne: null } })
+    .sort({ orderNumber: -1 })
+    .select("orderNumber")
+    .lean();
+
+  this.orderNumber = (latestWithOrderNumber?.orderNumber || 0) + 1;
+});
+
 module.exports = mongoose.model('Order', orderSchema);

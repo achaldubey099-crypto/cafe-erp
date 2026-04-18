@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 import { TRACKING_ORDER, clearStorage, mockFeedback, mockLatestOrder, seedCustomer, seedTable } from './helpers/ui-fixtures';
+import { getProtectedTableUrl } from './helpers/public-access';
 
 test.describe('Order Tracking Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -46,7 +47,7 @@ test.describe('Order Tracking Page', () => {
   test('back button navigates away from orders', async ({ page }) => {
     await page.goto('/orders');
     await page.locator('button').filter({ has: page.locator('svg.lucide-arrow-left') }).first().click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(new RegExp(`${getProtectedTableUrl(7)}$`));
   });
 
   test('logged-in customer sees review controls enabled', async ({ page }) => {

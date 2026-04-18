@@ -9,10 +9,18 @@ import {
   getTableSlug,
 } from "./tenant";
 
-const envApi = import.meta.env.VITE_API_URL as string | undefined;
+const rawEnvApi =
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (import.meta.env.VITE_API_BASE_URL as string | undefined);
+
+const normalizedApiOrigin = rawEnvApi
+  ? rawEnvApi.replace(/\/$/, "").replace(/\/api$/, "")
+  : import.meta.env.PROD
+    ? "https://cafe-erp-backend.onrender.com"
+    : "";
 
 const API = axios.create({
-  baseURL: envApi && envApi.length ? envApi.replace(/\/$/, "") + "/api" : "/api",
+  baseURL: normalizedApiOrigin ? `${normalizedApiOrigin}/api` : "/api",
   withCredentials: true, // 🔥 important for CORS & cookies (future-ready)
 });
 

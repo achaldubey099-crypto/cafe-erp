@@ -14,6 +14,7 @@ import {
   seedCustomer,
   seedTable,
 } from './helpers/ui-fixtures';
+import { getProtectedTableUrl } from './helpers/public-access';
 
 async function openProfile(
   page: Parameters<typeof test>[0]['page'],
@@ -122,7 +123,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
   test('guest back button returns to menu', async ({ page }) => {
     await openProfile(page);
     await page.locator('button').first().click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(new RegExp(`${getProtectedTableUrl(7)}$`));
   });
 
   test('logged-in profile shows customer name', async ({ page }) => {
@@ -191,7 +192,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
     await openProfile(page, { customer: true });
     await page.getByRole('button', { name: 'Logout' }).first().click();
     await page.waitForFunction(() => !localStorage.getItem('customerToken'));
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(new RegExp(`${getProtectedTableUrl(7)}$`));
   });
 
   test('logged-in profile removes favorites after logout', async ({ page }) => {
@@ -266,7 +267,7 @@ test.describe('Profile And Tracking Regression Suite', () => {
   test('tracking back button returns to menu', async ({ page }) => {
     await openTracking(page);
     await page.locator('button').first().click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(new RegExp(`${getProtectedTableUrl(7)}$`));
   });
 
   for (const status of orderStatuses) {

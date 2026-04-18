@@ -114,7 +114,11 @@ export default function Menu() {
           throw new Error("Restaurant access key not found");
         }
 
-        if (restaurantAccessKey || (restaurantSlug && !tableSlug)) {
+        const shouldResolveRestaurantEntry =
+          (!tableAccessKey && !!restaurantAccessKey) ||
+          (!tableSlug && !!restaurantSlug);
+
+        if (shouldResolveRestaurantEntry) {
           const entryRes = await API.get<PublicRestaurantEntryResponse>("/menu/entry", {
             params: restaurantAccessKey ? { restaurantAccessKey } : { restaurantSlug },
           });
@@ -126,12 +130,14 @@ export default function Menu() {
           });
 
           const firstTableUrl = entryRes.data?.firstTable?.url;
-          if (firstTableUrl) {
+          if (firstTableUrl && firstTableUrl !== location.pathname) {
             navigate(firstTableUrl, { replace: true });
             return;
           }
 
-          throw new Error("No active tables found for this restaurant");
+          if (!firstTableUrl) {
+            throw new Error("No active tables found for this restaurant");
+          }
         }
 
         const params: Record<string, string> = {};
@@ -146,8 +152,31 @@ export default function Menu() {
         const data = res.data || {};
         const menuData = Array.isArray(data) ? data : data.menu || data.menuItems || [];
 
+        const resolvedRestaurantAccessKey =
+          data.restaurant?.accessKey || tenant.restaurantAccessKey || restaurantAccessKey;
+        const resolvedTableLabel = data.table?.label || "";
+
+        // If we somehow land in a protected menu route without a resolved table payload,
+        // bounce back through the restaurant entry endpoint to recover the first valid table URL.
+        if (
+          tableAccessKey &&
+          resolvedRestaurantAccessKey &&
+          !resolvedTableLabel &&
+          menuData.length === 0
+        ) {
+          const entryRes = await API.get<PublicRestaurantEntryResponse>("/menu/entry", {
+            params: { restaurantAccessKey: resolvedRestaurantAccessKey },
+          });
+
+          const fallbackTableUrl = entryRes.data?.firstTable?.url;
+          if (fallbackTableUrl && fallbackTableUrl !== location.pathname) {
+            navigate(fallbackTableUrl, { replace: true });
+            return;
+          }
+        }
+
         mergeTenantContext({
-          restaurantAccessKey: data.restaurant?.accessKey || tenant.restaurantAccessKey,
+          restaurantAccessKey: resolvedRestaurantAccessKey,
           tableAccessKey: data.table?.accessKey || tenant.tableAccessKey,
           restaurantSlug: data.restaurant?.slug || tenant.restaurantSlug,
           tableSlug: data.table?.slug || tenant.tableSlug,
@@ -157,7 +186,7 @@ export default function Menu() {
 
         setProducts(menuData);
         setRestaurantName(data.restaurant?.brandName || "Cafe");
-        setTableLabel(data.table?.label || "");
+        setTableLabel(resolvedTableLabel);
 
         const uniqueCategories = [...new Set((menuData || []).map((item) => item.category))].sort();
         setCategories(["All", ...uniqueCategories]);

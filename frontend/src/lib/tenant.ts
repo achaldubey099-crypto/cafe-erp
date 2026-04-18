@@ -5,6 +5,7 @@ const TABLE_SLUG_KEY = "tableSlug";
 const RESTAURANT_ACCESS_KEY = "restaurantAccessKey";
 const TABLE_ACCESS_KEY = "tableAccessKey";
 const SESSION_STORAGE_KEY = "sessionId";
+const MENU_PATH_STORAGE_KEY = "customerMenuPath";
 const RESERVED_PATHS = new Set([
   "access",
   "login",
@@ -21,6 +22,26 @@ type PathTenant = {
   tableAccessKey: string | null;
   restaurantSlug: string | null;
   tableSlug: string | null;
+};
+
+const buildMenuPathFromTenant = (tenant: Partial<TenantContext> | PathTenant) => {
+  if (tenant.tableAccessKey) {
+    return `/access/${tenant.tableAccessKey}`;
+  }
+
+  if (tenant.restaurantAccessKey) {
+    return `/access/restaurant/${tenant.restaurantAccessKey}`;
+  }
+
+  if (tenant.restaurantSlug && tenant.tableSlug) {
+    return `/${tenant.restaurantSlug}/${tenant.tableSlug}`;
+  }
+
+  if (tenant.restaurantSlug) {
+    return `/${tenant.restaurantSlug}`;
+  }
+
+  return null;
 };
 
 export type TenantContext = PathTenant & {
@@ -80,6 +101,8 @@ export function syncTenantFromHash(hash: string) {
     localStorage.removeItem(TABLE_ACCESS_KEY);
     localStorage.removeItem(SESSION_STORAGE_KEY);
   }
+
+  localStorage.setItem(MENU_PATH_STORAGE_KEY, window.location.pathname || "/");
 
   return { restaurant, table };
 }
@@ -174,6 +197,11 @@ export function syncTenantFromLocation(pathname: string, hash: string) {
     localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
+  const menuPath = buildMenuPathFromTenant(nextTenant);
+  if (menuPath) {
+    localStorage.setItem(MENU_PATH_STORAGE_KEY, menuPath);
+  }
+
   return nextTenant;
 }
 
@@ -260,6 +288,11 @@ export function mergeTenantContext(next: Partial<TenantContext>) {
   updateTenantStorageValue(RESTAURANT_STORAGE_KEY, mergedTenant.restaurantPublicId);
   updateTenantStorageValue(TABLE_STORAGE_KEY, mergedTenant.tablePublicId);
   localStorage.removeItem(SESSION_STORAGE_KEY);
+
+  const menuPath = buildMenuPathFromTenant(mergedTenant);
+  if (menuPath) {
+    localStorage.setItem(MENU_PATH_STORAGE_KEY, menuPath);
+  }
 }
 
 export function getCustomerMenuPath() {
@@ -267,25 +300,13 @@ export function getCustomerMenuPath() {
     return "/";
   }
 
+  const storedMenuPath = localStorage.getItem(MENU_PATH_STORAGE_KEY);
+  if (storedMenuPath) {
+    return storedMenuPath;
+  }
+
   const tenant = getTenantContext();
-
-  if (tenant.tableAccessKey) {
-    return `/access/${tenant.tableAccessKey}`;
-  }
-
-  if (tenant.restaurantAccessKey) {
-    return `/access/restaurant/${tenant.restaurantAccessKey}`;
-  }
-
-  if (tenant.restaurantSlug && tenant.tableSlug) {
-    return `/${tenant.restaurantSlug}/${tenant.tableSlug}`;
-  }
-
-  if (tenant.restaurantSlug) {
-    return `/${tenant.restaurantSlug}`;
-  }
-
-  return "/";
+  return buildMenuPathFromTenant(tenant) || "/";
 }
 
 export function getOrCreateTenantSessionId() {
