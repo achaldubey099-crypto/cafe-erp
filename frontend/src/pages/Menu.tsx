@@ -8,7 +8,7 @@ import API from "../lib/api";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { getTenantContext } from "../lib/tenant";
+import { getCustomerMenuPath, getTenantContext, mergeTenantContext } from "../lib/tenant";
 
 interface FavoriteResponse {
   _id: string;
@@ -22,19 +22,29 @@ interface ToggleFavoriteResponse {
 interface PublicRestaurantEntryResponse {
   restaurant?: {
     brandName?: string;
+    slug?: string;
+    accessKey?: string;
   };
   firstTable?: {
     accessKey?: string;
     url?: string;
+    slug?: string;
+    publicTableId?: string;
   } | null;
 }
 
 interface PublicMenuResponse {
   restaurant?: {
     brandName?: string;
+    slug?: string;
+    accessKey?: string;
+    publicRestaurantId?: string;
   };
   table?: {
     label?: string;
+    accessKey?: string;
+    slug?: string;
+    publicTableId?: string;
   };
   menu?: Product[];
   menuItems?: Product[];
@@ -110,6 +120,10 @@ export default function Menu() {
           });
 
           setRestaurantName(entryRes.data?.restaurant?.brandName || "Cafe");
+          mergeTenantContext({
+            restaurantAccessKey: entryRes.data?.restaurant?.accessKey || restaurantAccessKey,
+            restaurantSlug: entryRes.data?.restaurant?.slug || restaurantSlug,
+          });
 
           const firstTableUrl = entryRes.data?.firstTable?.url;
           if (firstTableUrl) {
@@ -131,6 +145,15 @@ export default function Menu() {
         const res = await API.get<PublicMenuResponse>("/menu/access", { params });
         const data = res.data || {};
         const menuData = Array.isArray(data) ? data : data.menu || data.menuItems || [];
+
+        mergeTenantContext({
+          restaurantAccessKey: data.restaurant?.accessKey || tenant.restaurantAccessKey,
+          tableAccessKey: data.table?.accessKey || tenant.tableAccessKey,
+          restaurantSlug: data.restaurant?.slug || tenant.restaurantSlug,
+          tableSlug: data.table?.slug || tenant.tableSlug,
+          restaurantPublicId: data.restaurant?.publicRestaurantId || tenant.restaurantPublicId,
+          tablePublicId: data.table?.publicTableId || tenant.tablePublicId,
+        });
 
         setProducts(menuData);
         setRestaurantName(data.restaurant?.brandName || "Cafe");
@@ -172,7 +195,7 @@ export default function Menu() {
 
   const handleToggleFavorite = async (product: Product) => {
     if (!isLoggedIn) {
-      navigate("/login?returnTo=/");
+      navigate(`/login?returnTo=${encodeURIComponent(getCustomerMenuPath())}`);
       return;
     }
 
@@ -217,7 +240,7 @@ export default function Menu() {
   const handleLogout = () => {
     logoutCustomer();
     setFavorites([]);
-    navigate("/");
+    navigate(getCustomerMenuPath());
   };
 
  // 🔥 Filtering logic (FINAL FIXED)
@@ -280,7 +303,7 @@ const filteredProducts = products.filter((p) => {
               </button>
             ) : (
               <button
-                onClick={() => navigate("/login?returnTo=/")}
+                onClick={() => navigate(`/login?returnTo=${encodeURIComponent(getCustomerMenuPath())}`)}
                 className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-on-primary shadow-md shadow-primary/20 active:scale-95 transition-all"
               >
                 <LogIn size={16} />

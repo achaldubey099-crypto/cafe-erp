@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import API from "../lib/api";
-import { getOrCreateTenantSessionId, getTenantContext } from "../lib/tenant";
+import { getCustomerMenuPath, getOrCreateTenantSessionId, getTenantContext } from "../lib/tenant";
 
 type RazorpayOrderResponse = {
   id?: string;
@@ -39,6 +39,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart } = useCart();
   const { customer } = useAuth();
+  const menuPath = getCustomerMenuPath();
 
   const [people, setPeople] = useState(1);
   const [sessionId, setSessionId] = useState("");
@@ -48,16 +49,15 @@ export default function Checkout() {
   // ✅ GET TABLE
   const tenant = getTenantContext();
   const tableId = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
-  const restaurantId = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId;
 
   // ✅ CREATE SESSION (ONLY ONCE)
   useEffect(() => {
-    if (!tableId || !restaurantId) {
+    if (!tableId) {
       setSessionId("");
       return;
     }
     setSessionId(getOrCreateTenantSessionId());
-  }, [restaurantId, tableId]);
+  }, [tableId]);
 
   // 🔥 CALCULATIONS
   const subtotal = cart.reduce(
@@ -85,7 +85,7 @@ export default function Checkout() {
   const placeOrder = async (paymentMethod: string) => {
     try {
       // ❌ VALIDATION
-      if (!tableId || !restaurantId) {
+      if (!tableId) {
         showNotice({
           kind: "error",
           title: "Restaurant Access Missing",
@@ -101,7 +101,7 @@ export default function Checkout() {
           title: "Cart Is Empty",
           message: "Add something from the menu before placing your order.",
           actionLabel: "Back to Menu",
-          onClose: () => navigate("/"),
+          onClose: () => navigate(menuPath),
         });
         return;
       }

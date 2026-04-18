@@ -2,10 +2,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Coffee, ShoppingCart, Receipt, User } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getCustomerMenuPath } from '../lib/tenant';
 
 export default function BottomNav() {
+  const menuPath = getCustomerMenuPath();
   const navItems = [
-    { to: '/', icon: Coffee, label: 'Menu' },
+    { to: menuPath, icon: Coffee, label: 'Menu' },
     { to: '/checkout', icon: ShoppingCart, label: 'Checkout' },
     { to: '/orders', icon: Receipt, label: 'Orders' },
     { to: '/profile', icon: User, label: 'Profile' },

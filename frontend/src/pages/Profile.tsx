@@ -6,6 +6,7 @@ import API from '../lib/api';
 import { getTableId } from '../lib/table';
 import { Order } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { getCustomerMenuPath } from '../lib/tenant';
 
 interface ProfileResponse {
   user: {
@@ -30,6 +31,7 @@ interface FavoriteResponse {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const menuPath = getCustomerMenuPath();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [favorites, setFavorites] = useState<FavoriteResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function Profile() {
 
   const handleLogout = () => {
     logoutCustomer();
-    navigate('/');
+    navigate(menuPath);
   };
 
   const userName = isLoggedIn ? (customer.name || 'User') : (profile?.user?.name || 'Guest User');
@@ -97,7 +99,7 @@ export default function Profile() {
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm flex items-center px-4 h-16">
         <div className="flex items-center w-full justify-between">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(menuPath)}
             className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container-low transition-colors active:scale-95"
           >
             <ArrowLeft size={20} className="text-primary" />

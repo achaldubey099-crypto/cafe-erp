@@ -1,6 +1,20 @@
 const mongoose = require("mongoose");
 
 const staffSchema = new mongoose.Schema({
+  cafeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Cafe",
+    default: null,
+    index: true
+  },
+
+  restaurantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Restaurant",
+    default: null,
+    index: true
+  },
+
   name: {
     type: String,
     required: true

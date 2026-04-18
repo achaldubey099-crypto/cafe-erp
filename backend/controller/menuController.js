@@ -136,13 +136,16 @@ exports.getPublicRestaurantEntry = async (req, res) => {
 exports.getMenu = async (req, res) => {
   try {
     const { category, search, sort } = req.query;
-    const { restaurantId } = await ensureRestaurantForUser(req);
+    const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
-    if (!restaurantId) {
-      return res.status(400).json({ message: "Restaurant context is required for admin menu access" });
+    if (!restaurantId && !cafeId) {
+      return res.status(400).json({ message: "Restaurant or cafe context is required for admin menu access" });
     }
 
-    let filter = applyMenuFilters({ restaurantId }, { category, search });
+    let filter = applyMenuFilters(
+      restaurantId ? { restaurantId } : { cafeId },
+      { category, search }
+    );
     let query = Menu.find(filter);
 
     if (sort === "price_asc") query = query.sort({ price: 1 });
@@ -172,10 +175,10 @@ exports.getFeaturedItem = async (req, res) => {
 exports.createMenuItem = async (req, res) => {
   try {
     const { name, price, category, image, isFeatured } = req.body;
-    const { restaurantId } = await ensureRestaurantForUser(req);
+    const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
-    if (!restaurantId) {
-      return res.status(400).json({ message: "Restaurant context is required" });
+    if (!restaurantId && !cafeId) {
+      return res.status(400).json({ message: "Restaurant or cafe context is required" });
     }
 
     if (!name || !price || !category) {
@@ -188,7 +191,8 @@ exports.createMenuItem = async (req, res) => {
     }
 
     const item = await Menu.create({
-      restaurantId,
+      restaurantId: restaurantId || null,
+      cafeId: cafeId || null,
       name,
       price: Number(price),
       category: category.trim(),
@@ -210,13 +214,15 @@ exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, price, category, image, isFeatured } = req.body;
-    const { restaurantId } = await ensureRestaurantForUser(req);
+    const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
-    if (!restaurantId) {
-      return res.status(400).json({ message: "Restaurant context is required" });
+    if (!restaurantId && !cafeId) {
+      return res.status(400).json({ message: "Restaurant or cafe context is required" });
     }
 
-    const item = await Menu.findOne({ _id: id, restaurantId });
+    const item = await Menu.findOne(
+      restaurantId ? { _id: id, restaurantId } : { _id: id, cafeId }
+    );
     if (!item) {
       return res.status(404).json({ message: "Item not found" });
     }
@@ -248,13 +254,15 @@ exports.updateMenuItem = async (req, res) => {
 exports.deleteMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { restaurantId } = await ensureRestaurantForUser(req);
+    const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
-    if (!restaurantId) {
-      return res.status(400).json({ message: "Restaurant context is required" });
+    if (!restaurantId && !cafeId) {
+      return res.status(400).json({ message: "Restaurant or cafe context is required" });
     }
 
-    const item = await Menu.findOneAndDelete({ _id: id, restaurantId });
+    const item = await Menu.findOneAndDelete(
+      restaurantId ? { _id: id, restaurantId } : { _id: id, cafeId }
+    );
 
     if (!item) {
       return res.status(404).json({ message: "Item not found" });

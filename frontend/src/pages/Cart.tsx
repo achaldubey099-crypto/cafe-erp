@@ -2,10 +2,12 @@ import React from "react";
 import { ShoppingCart, ArrowLeft, Plus, Minus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { getCustomerMenuPath } from "../lib/tenant";
 
 export default function Cart() {
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, deleteFromCart, clearCart } = useCart();
+  const menuPath = getCustomerMenuPath();
 
   const totalPrice = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -57,7 +59,7 @@ export default function Cart() {
             </div>
 
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate(menuPath)}
               className="bg-primary text-on-primary px-8 py-3 rounded-2xl font-headline font-bold shadow-lg shadow-primary/20 active:scale-95 transition-transform"
             >
               Browse Menu

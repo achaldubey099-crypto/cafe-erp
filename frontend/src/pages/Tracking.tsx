@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Bell, Check, Coffee, ShoppingBag, Stars, ChevronRight, Receipt, Star, XCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../lib/api';
-import { getOrCreateTenantSessionId, getTenantContext } from '../lib/tenant';
+import { getCustomerMenuPath, getOrCreateTenantSessionId, getTenantContext } from '../lib/tenant';
 import { Feedback, Order } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -54,6 +54,7 @@ export default function Tracking() {
   const navigate = useNavigate();
   const location = useLocation();
   const { customer } = useAuth();
+  const menuPath = getCustomerMenuPath();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -80,12 +81,11 @@ export default function Tracking() {
 
   useEffect(() => {
     const tenant = getTenantContext();
-    const boundRestaurantId = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId;
     const boundTableId = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
     const boundSessionId = getOrCreateTenantSessionId();
 
     const fetchOrders = async () => {
-      if (!boundRestaurantId || !boundTableId) {
+      if (!boundTableId) {
         setOrders([]);
         setLoading(false);
         setRefreshing(false);
@@ -220,7 +220,7 @@ export default function Tracking() {
       <header className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md shadow-sm">
         <div className="flex justify-between items-center px-6 py-4 w-full">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(menuPath)}
             className="p-2 rounded-xl hover:bg-surface-container-low transition-colors active:scale-95"
           >
             <ArrowLeft size={20} className="text-primary" />

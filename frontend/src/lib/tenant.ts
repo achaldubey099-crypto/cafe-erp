@@ -23,6 +23,33 @@ type PathTenant = {
   tableSlug: string | null;
 };
 
+export type TenantContext = PathTenant & {
+  restaurantPublicId: string | null;
+  tablePublicId: string | null;
+};
+
+const readTenantContext = (): TenantContext => ({
+  restaurantAccessKey: localStorage.getItem(RESTAURANT_ACCESS_KEY),
+  tableAccessKey: localStorage.getItem(TABLE_ACCESS_KEY),
+  restaurantSlug: localStorage.getItem(RESTAURANT_SLUG_KEY),
+  tableSlug: localStorage.getItem(TABLE_SLUG_KEY),
+  restaurantPublicId: localStorage.getItem(RESTAURANT_STORAGE_KEY),
+  tablePublicId: localStorage.getItem(TABLE_STORAGE_KEY),
+});
+
+const updateTenantStorageValue = (storageKey: string, value: string | null | undefined) => {
+  if (value === undefined) {
+    return;
+  }
+
+  if (value) {
+    localStorage.setItem(storageKey, value);
+    return;
+  }
+
+  localStorage.removeItem(storageKey);
+};
+
 const parseHashValue = (hash: string, key: string) => {
   const trimmed = hash.startsWith("#") ? hash.slice(1) : hash;
   const params = new URLSearchParams(trimmed);
@@ -112,50 +139,42 @@ export function syncTenantFromLocation(pathname: string, hash: string) {
     return syncTenantFromHash(hash);
   }
 
-  const currentTenant: PathTenant = {
-    restaurantAccessKey: localStorage.getItem(RESTAURANT_ACCESS_KEY),
-    tableAccessKey: localStorage.getItem(TABLE_ACCESS_KEY),
-    restaurantSlug: localStorage.getItem(RESTAURANT_SLUG_KEY),
-    tableSlug: localStorage.getItem(TABLE_SLUG_KEY),
+  const currentTenant = readTenantContext();
+  const nextTenant: PathTenant = {
+    restaurantAccessKey:
+      pathTenant.restaurantAccessKey !== null
+        ? pathTenant.restaurantAccessKey
+        : pathTenant.tableAccessKey
+          ? currentTenant.restaurantAccessKey
+          : null,
+    tableAccessKey: pathTenant.tableAccessKey,
+    restaurantSlug:
+      pathTenant.restaurantSlug !== null
+        ? pathTenant.restaurantSlug
+        : pathTenant.tableSlug
+          ? currentTenant.restaurantSlug
+          : null,
+    tableSlug: pathTenant.tableSlug,
   };
 
   const hasChanged =
-    currentTenant.restaurantAccessKey !== pathTenant.restaurantAccessKey ||
-    currentTenant.tableAccessKey !== pathTenant.tableAccessKey ||
-    currentTenant.restaurantSlug !== pathTenant.restaurantSlug ||
-    currentTenant.tableSlug !== pathTenant.tableSlug;
+    currentTenant.restaurantAccessKey !== nextTenant.restaurantAccessKey ||
+    currentTenant.tableAccessKey !== nextTenant.tableAccessKey ||
+    currentTenant.restaurantSlug !== nextTenant.restaurantSlug ||
+    currentTenant.tableSlug !== nextTenant.tableSlug;
 
   if (hasChanged) {
-    if (pathTenant.restaurantAccessKey) {
-      localStorage.setItem(RESTAURANT_ACCESS_KEY, pathTenant.restaurantAccessKey);
-    } else {
-      localStorage.removeItem(RESTAURANT_ACCESS_KEY);
-    }
-
-    if (pathTenant.tableAccessKey) {
-      localStorage.setItem(TABLE_ACCESS_KEY, pathTenant.tableAccessKey);
-    } else {
-      localStorage.removeItem(TABLE_ACCESS_KEY);
-    }
-
-    if (pathTenant.restaurantSlug) {
-      localStorage.setItem(RESTAURANT_SLUG_KEY, pathTenant.restaurantSlug);
-    } else {
-      localStorage.removeItem(RESTAURANT_SLUG_KEY);
-    }
-
-    if (pathTenant.tableSlug) {
-      localStorage.setItem(TABLE_SLUG_KEY, pathTenant.tableSlug);
-    } else {
-      localStorage.removeItem(TABLE_SLUG_KEY);
-    }
+    updateTenantStorageValue(RESTAURANT_ACCESS_KEY, nextTenant.restaurantAccessKey);
+    updateTenantStorageValue(TABLE_ACCESS_KEY, nextTenant.tableAccessKey);
+    updateTenantStorageValue(RESTAURANT_SLUG_KEY, nextTenant.restaurantSlug);
+    updateTenantStorageValue(TABLE_SLUG_KEY, nextTenant.tableSlug);
 
     localStorage.removeItem(RESTAURANT_STORAGE_KEY);
     localStorage.removeItem(TABLE_STORAGE_KEY);
     localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
-  return pathTenant;
+  return nextTenant;
 }
 
 export function getPublicRestaurantId() {
@@ -208,23 +227,74 @@ export function getTenantContext() {
 
   syncTenantFromLocation(window.location.pathname, window.location.hash);
 
-  return {
-    restaurantAccessKey: localStorage.getItem(RESTAURANT_ACCESS_KEY),
-    tableAccessKey: localStorage.getItem(TABLE_ACCESS_KEY),
-    restaurantSlug: localStorage.getItem(RESTAURANT_SLUG_KEY),
-    tableSlug: localStorage.getItem(TABLE_SLUG_KEY),
-    restaurantPublicId: localStorage.getItem(RESTAURANT_STORAGE_KEY),
-    tablePublicId: localStorage.getItem(TABLE_STORAGE_KEY),
+  return readTenantContext();
+}
+
+export function mergeTenantContext(next: Partial<TenantContext>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const currentTenant = readTenantContext();
+  const mergedTenant: TenantContext = {
+    ...currentTenant,
+    ...next,
   };
+
+  const hasChanged =
+    currentTenant.restaurantAccessKey !== mergedTenant.restaurantAccessKey ||
+    currentTenant.tableAccessKey !== mergedTenant.tableAccessKey ||
+    currentTenant.restaurantSlug !== mergedTenant.restaurantSlug ||
+    currentTenant.tableSlug !== mergedTenant.tableSlug ||
+    currentTenant.restaurantPublicId !== mergedTenant.restaurantPublicId ||
+    currentTenant.tablePublicId !== mergedTenant.tablePublicId;
+
+  if (!hasChanged) {
+    return;
+  }
+
+  updateTenantStorageValue(RESTAURANT_ACCESS_KEY, mergedTenant.restaurantAccessKey);
+  updateTenantStorageValue(TABLE_ACCESS_KEY, mergedTenant.tableAccessKey);
+  updateTenantStorageValue(RESTAURANT_SLUG_KEY, mergedTenant.restaurantSlug);
+  updateTenantStorageValue(TABLE_SLUG_KEY, mergedTenant.tableSlug);
+  updateTenantStorageValue(RESTAURANT_STORAGE_KEY, mergedTenant.restaurantPublicId);
+  updateTenantStorageValue(TABLE_STORAGE_KEY, mergedTenant.tablePublicId);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+export function getCustomerMenuPath() {
+  if (typeof window === "undefined") {
+    return "/";
+  }
+
+  const tenant = getTenantContext();
+
+  if (tenant.tableAccessKey) {
+    return `/access/${tenant.tableAccessKey}`;
+  }
+
+  if (tenant.restaurantAccessKey) {
+    return `/access/restaurant/${tenant.restaurantAccessKey}`;
+  }
+
+  if (tenant.restaurantSlug && tenant.tableSlug) {
+    return `/${tenant.restaurantSlug}/${tenant.tableSlug}`;
+  }
+
+  if (tenant.restaurantSlug) {
+    return `/${tenant.restaurantSlug}`;
+  }
+
+  return "/";
 }
 
 export function getOrCreateTenantSessionId() {
   if (typeof window === "undefined") return "";
 
   const tenant = getTenantContext();
-  const restaurant = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId;
   const table = tenant.tableAccessKey || tenant.tableSlug || tenant.tablePublicId;
-  if (!restaurant || !table) return "";
+  const restaurant = tenant.restaurantAccessKey || tenant.restaurantSlug || tenant.restaurantPublicId || "restaurant";
+  if (!table) return "";
 
   let sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
   if (!sessionId) {
