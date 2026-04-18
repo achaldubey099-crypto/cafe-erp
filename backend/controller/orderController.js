@@ -101,6 +101,7 @@ exports.createOrder = async (req, res) => {
             restaurantId: tenantRestaurant._id,
             tableRef: tenantTable._id,
             tableId: resolvedTableId,
+            orderNumber: await Order.getNextOrderNumber(),
             sessionId, // ✅ IMPORTANT (added)
             userId: req.user?.role === "user" ? req.user.id : null,
             items,

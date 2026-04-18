@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Counter = require('./Counter');
 
 const orderSchema = new mongoose.Schema(
   {
@@ -127,7 +128,6 @@ const orderSchema = new mongoose.Schema(
     // 🔢 ORDER NUMBER
     orderNumber: {
       type: Number,
-      unique: true,
       default: null, // ✅ FIX: prevent crash if not provided
     },
     cafeId: {
@@ -144,19 +144,36 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ restaurantId: 1, status: 1, createdAt: -1 });
+orderSchema.index(
+  { orderNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      orderNumber: { $type: "number" },
+    },
+  }
+);
+
+orderSchema.statics.getNextOrderNumber = async function getNextOrderNumber() {
+  const counter = await Counter.findOneAndUpdate(
+    { key: "orderNumber" },
+    { $inc: { value: 1 } },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+
+  return counter.value;
+};
 
 orderSchema.pre("validate", async function assignOrderNumber() {
   if (!this.isNew || this.orderNumber) {
     return;
   }
 
-  const latestWithOrderNumber = await this.constructor
-    .findOne({ orderNumber: { $exists: true, $ne: null } })
-    .sort({ orderNumber: -1 })
-    .select("orderNumber")
-    .lean();
-
-  this.orderNumber = (latestWithOrderNumber?.orderNumber || 0) + 1;
+  this.orderNumber = await this.constructor.getNextOrderNumber();
 });
 
 module.exports = mongoose.model('Order', orderSchema);

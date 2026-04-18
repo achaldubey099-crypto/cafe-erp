@@ -103,13 +103,7 @@ const updateOrderStatus = async (req, res) => {
 
     // Backfill missing orderNumber for legacy documents.
     if (!order.orderNumber) {
-      const latestWithOrderNumber = await Order.findOne({
-        orderNumber: { $exists: true, $ne: null },
-      })
-        .sort({ orderNumber: -1 })
-        .select("orderNumber");
-
-      updatePayload.orderNumber = (latestWithOrderNumber?.orderNumber || 0) + 1;
+      updatePayload.orderNumber = await Order.getNextOrderNumber();
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
