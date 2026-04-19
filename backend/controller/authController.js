@@ -3,6 +3,7 @@ const Restaurant = require("../models/Restaurant");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
+const { issueLoginCaptcha, verifyLoginCaptcha } = require("../utils/loginCaptcha");
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const ADMIN_ROLES = ["admin", "owner", "superadmin"];
@@ -204,10 +205,14 @@ const googleLogin = async (req, res) => {
 
 const loginWithRoles = async (req, res, allowedRoles) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, captchaId, captchaAnswer } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    if (!verifyLoginCaptcha(captchaId, captchaAnswer)) {
+      return res.status(400).json({ message: "Captcha verification failed. Please try again." });
     }
 
     const user = await User.findOne({ email }).select("+password");
@@ -240,6 +245,9 @@ const loginWithRoles = async (req, res, allowedRoles) => {
 
 const loginOwner = async (req, res) => loginWithRoles(req, res, ADMIN_ROLES);
 const loginSuperadmin = async (req, res) => loginWithRoles(req, res, ["superadmin"]);
+const getLoginCaptcha = (req, res) => {
+  res.json(issueLoginCaptcha());
+};
 
 
 module.exports = {
@@ -248,4 +256,5 @@ module.exports = {
   googleLogin,
   loginOwner,
   loginSuperadmin,
+  getLoginCaptcha,
 };

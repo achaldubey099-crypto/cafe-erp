@@ -35,6 +35,19 @@ type CheckoutNotice = {
   onClose?: () => void;
 };
 
+const getRazorpayThemeColor = () => {
+  if (typeof window === "undefined") {
+    return "#553722";
+  }
+
+  const primary = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-primary")
+    .trim();
+
+  return primary || "#553722";
+};
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart } = useCart();
@@ -181,6 +194,7 @@ export default function Checkout() {
       }
       const orderId = order.id || order.order_id || order._id;
       const orderAmount = order.amount || order.amount_due || order.total || total;
+      const themeColor = getRazorpayThemeColor();
 
       const options = {
         key: "rzp_test_SdShGK2Y6Cgv4Y",
@@ -204,7 +218,7 @@ export default function Checkout() {
         },
 
         theme: {
-          color: "#3399cc",
+          color: themeColor,
         },
       };
 

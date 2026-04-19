@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../lib/api";
+import LoginCaptcha from "../components/LoginCaptcha";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -9,6 +10,9 @@ export default function AdminLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaId, setCaptchaId] = useState("");
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaRefreshNonce, setCaptchaRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,6 +24,8 @@ export default function AdminLogin() {
       const res = await API.post<{ token: string; user: { id: string; name: string; role: "admin" | "owner" | "superadmin" | "user" } }>("/auth/admin/login", {
         email,
         password,
+        captchaId,
+        captchaAnswer,
       });
 
       // ✅ Save token in localStorage
@@ -34,6 +40,7 @@ export default function AdminLogin() {
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || "Login failed");
+      setCaptchaRefreshNonce((current) => current + 1);
     } finally {
       setLoading(false);
     }
@@ -68,9 +75,16 @@ export default function AdminLogin() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
+        <LoginCaptcha
+          value={captchaAnswer}
+          onChange={setCaptchaAnswer}
+          onCaptchaIdChange={setCaptchaId}
+          refreshNonce={captchaRefreshNonce}
+        />
+
         <button
           onClick={handleLogin}
-          disabled={loading}
+          disabled={loading || !captchaAnswer.trim()}
           className="w-full bg-primary text-white py-3 rounded-xl disabled:opacity-50"
         >
           {loading ? "Logging in..." : "Login"}

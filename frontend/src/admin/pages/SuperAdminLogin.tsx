@@ -2,12 +2,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../lib/api";
+import LoginCaptcha from "../components/LoginCaptcha";
 
 export default function SuperAdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaId, setCaptchaId] = useState("");
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaRefreshNonce, setCaptchaRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -15,11 +19,17 @@ export default function SuperAdminLogin() {
     try {
       setLoading(true);
       setError("");
-      const res = await API.post("/auth/superadmin/login", { email, password });
+      const res = await API.post("/auth/superadmin/login", {
+        email,
+        password,
+        captchaId,
+        captchaAnswer,
+      });
       login(res.data);
       navigate("/superadmin/access");
     } catch (err: any) {
       setError(err?.response?.data?.message || "Login failed");
+      setCaptchaRefreshNonce((current) => current + 1);
     } finally {
       setLoading(false);
     }
@@ -47,9 +57,15 @@ export default function SuperAdminLogin() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        <LoginCaptcha
+          value={captchaAnswer}
+          onChange={setCaptchaAnswer}
+          onCaptchaIdChange={setCaptchaId}
+          refreshNonce={captchaRefreshNonce}
+        />
         <button
           onClick={handleLogin}
-          disabled={loading}
+          disabled={loading || !captchaAnswer.trim()}
           className="w-full bg-primary text-white py-3 rounded-xl disabled:opacity-50"
         >
           {loading ? "Logging in..." : "Login"}
