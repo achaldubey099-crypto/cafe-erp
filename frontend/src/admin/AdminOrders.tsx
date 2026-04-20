@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Search,
   Download,
@@ -28,6 +28,7 @@ interface OrderItem {
 
 interface AdminOrder {
   _id: string;
+  orderNumber?: number | null;
   tableId: number;
   items: OrderItem[];
   status: OrderStatus;
@@ -61,12 +62,16 @@ const formatTimeAgo = (dateStr: string) => {
   return `${days} days ago`;
 };
 
+const formatOrderLabel = (order: AdminOrder) =>
+  order.orderNumber ? `#${order.orderNumber}` : `#${order._id.slice(-6).toUpperCase()}`;
+
 export default function AdminOrders() {
   // Start on the first stage (pending)
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(10));
@@ -87,7 +92,12 @@ export default function AdminOrders() {
     cancelled: <XCircle size={14} />,
   };
 
-  const loadOrders = async (pageNumber = page, limitNumber = pagination.limit, nextFilter = filter, nextSearch = search) => {
+  const loadOrders = useCallback(async (
+    pageNumber = page,
+    limitNumber = pagination.limit,
+    nextFilter = filter,
+    nextSearch = search
+  ) => {
     try {
       setLoading(true);
       setError("");
@@ -111,17 +121,26 @@ export default function AdminOrders() {
     } finally {
       setLoading(false);
     }
+  }, [filter, page, pagination.limit, search]);
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadOrders(page, pagination.limit, filter, search);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    loadOrders();
+    void loadOrders();
 
     const interval = setInterval(() => {
-      loadOrders();
+      void loadOrders();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [page, pagination.limit, filter, search]);
+  }, [loadOrders]);
 
   const handleStatusUpdate = async (orderId: string, status: UpdatableStatus) => {
     try {
@@ -213,11 +232,11 @@ export default function AdminOrders() {
           </button>
           <button
             onClick={() => {
-              void loadOrders(page, pagination.limit, filter, search);
+              void handleRefresh();
             }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
           >
-            Refresh Feed
+            {refreshing ? "Refreshing..." : "Refresh Feed"}
           </button>
         </div>
       </div>
@@ -290,7 +309,7 @@ export default function AdminOrders() {
                 return (
                   <tr key={order._id} className="hover:bg-surface-container-low/30 transition-colors">
                     <td className="px-6 py-4">
-                      <span className="font-mono font-bold text-xs text-primary">#{order._id.slice(-6).toUpperCase()}</span>
+                      <span className="font-mono font-bold text-xs text-primary">{formatOrderLabel(order)}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-sm text-on-surface">Table {order.tableId}</span>

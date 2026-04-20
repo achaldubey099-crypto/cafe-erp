@@ -44,6 +44,11 @@ interface BillView {
   printable: boolean;
 }
 
+interface FinishAction {
+  label: string;
+  orderIds: string[];
+}
+
 const ONGOING_STATUSES: OngoingStatus[] = ["pending", "preparing", "ready"];
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -107,6 +112,7 @@ export default function AdminPOS() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isMergedView, setIsMergedView] = useState(false);
+  const [confirmFinishAction, setConfirmFinishAction] = useState<FinishAction | null>(null);
 
   const menuByItemId = useMemo(() => {
     const map = new Map<number, Product>();
@@ -179,7 +185,7 @@ export default function AdminPOS() {
           ? "preparing"
           : tableOrders.some((o) => o.status === "pending")
             ? "pending"
-            : "ready") as OrderStatus,
+          : "ready") as OrderStatus,
       }))
       .sort((a, b) => a.tableId - b.tableId);
   }, [orders]);
@@ -194,6 +200,13 @@ export default function AdminPOS() {
       setIsMergedView(false);
     }
   }, [selectedTableOrders.length, selectedTable]);
+
+  useEffect(() => {
+    if (selectedTable && selectedTableOrders.length === 0) {
+      const nextTable = tables[0]?.tableId ?? null;
+      setSelectedTable(nextTable);
+    }
+  }, [selectedTable, selectedTableOrders.length, tables]);
 
   const mergedBill = useMemo<BillView | null>(() => {
     if (!selectedTable || selectedTableOrders.length === 0) {
@@ -245,6 +258,35 @@ export default function AdminPOS() {
     }));
   }, [isMergedView, mergedBill, selectedTableOrders]);
 
+  const queueFinishAction = (action: FinishAction) => {
+    setConfirmFinishAction(action);
+  };
+
+  const confirmQueuedFinish = async () => {
+    if (!confirmFinishAction) {
+      return;
+    }
+
+    const action = confirmFinishAction;
+    setConfirmFinishAction(null);
+    setError("");
+
+    try {
+      await Promise.all(
+        action.orderIds.map((orderId) =>
+          API.put(`/admin-orders/${orderId}/status`, { status: "completed" })
+        )
+      );
+
+      setOrders((current) =>
+        current.filter((order) => !action.orderIds.includes(order._id))
+      );
+    } catch (err) {
+      console.error(err);
+      setError(`Failed to finish ${action.label.toLowerCase()}.`);
+    }
+  };
+
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     try {
       await API.put(`/admin-orders/${orderId}/status`, { status });
@@ -257,22 +299,6 @@ export default function AdminPOS() {
     } catch (err) {
       console.error(err);
       setError("Failed to update order status in POS");
-    }
-  };
-
-  const updateSelectedTableToFinished = async () => {
-    try {
-      await Promise.all(
-        selectedTableOrders.map((order) => API.put(`/admin-orders/${order._id}/status`, { status: "completed" }))
-      );
-
-      setOrders((prev) =>
-        prev.filter((order) => !selectedTableOrders.some((selectedOrder) => selectedOrder._id === order._id))
-      );
-      setIsMergedView(false);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to finish all orders on this table");
     }
   };
 
@@ -372,7 +398,6 @@ export default function AdminPOS() {
       </div>
 
       {error && <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">{error}</div>}
-
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 lg:col-span-4 bg-white rounded-3xl border border-outline/5 shadow-sm p-4">
           <h3 className="text-sm uppercase tracking-widest font-black text-secondary px-2 mb-3">Tables</h3>
@@ -415,14 +440,28 @@ export default function AdminPOS() {
             </h3>
             <div className="flex flex-wrap items-center gap-2">
               {selectedTableOrders.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setIsMergedView((current) => !current)}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-outline/10 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-on-surface"
-                >
-                  <Merge size={14} />
-                  {isMergedView ? "Split Bills" : "Merge Bills"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsMergedView((current) => !current)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-outline/10 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-on-surface"
+                  >
+                    <Merge size={14} />
+                    {isMergedView ? "Split Bills" : "Merge Bills"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      queueFinishAction({
+                        label: `Table ${selectedTable} orders`,
+                        orderIds: selectedTableOrders.map((order) => order._id),
+                      })
+                    }
+                    className="rounded-2xl bg-[#808000]/15 px-4 py-2 text-xs font-bold uppercase tracking-widest text-[#556b2f] border border-[#808000]/30"
+                  >
+                    Finish Table
+                  </button>
+                </>
               )}
               <span className="text-xs uppercase tracking-widest font-black text-secondary">
                 {selectedTableOrders.length} Active
@@ -441,6 +480,7 @@ export default function AdminPOS() {
 
             {visibleBills.map((bill) => {
               const paymentBadge = getPaymentBadge(bill.paymentStatus, bill.pendingAmount);
+              const canShowIndividualFinish = selectedTableOrders.length === 1;
 
               return (
                 <article key={bill.id} className="rounded-2xl border border-outline/10 p-4 bg-surface-container-low/30">
@@ -509,21 +549,13 @@ export default function AdminPOS() {
                         onClick={() => handlePrintBill(bill)}
                         disabled={!bill.printable}
                         className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-all disabled:cursor-not-allowed disabled:bg-slate-300"
-                        title={!bill.printable ? "Print is enabled only after the table bill is merged or when there is a single order." : "Print bill"}
+                        title={!bill.printable ? "Print is enabled only when the table has one order or after bills are merged." : "Print bill"}
                       >
                         <ReceiptText size={14} />
                         Print Bill
                       </button>
 
-                      {isMergedView ? (
-                        <button
-                          type="button"
-                          onClick={updateSelectedTableToFinished}
-                          className="text-xs px-3 py-2 rounded-lg bg-[#808000]/15 text-[#556b2f] border border-[#808000]/30 font-semibold"
-                        >
-                          Finish Table
-                        </button>
-                      ) : (
+                      {!isMergedView && (
                         <>
                           <select
                             value={bill.status}
@@ -536,12 +568,22 @@ export default function AdminPOS() {
                               </option>
                             ))}
                           </select>
-                          <button
-                            onClick={() => updateOrderStatus(bill.orderIds[0], "completed")}
-                            className="text-xs px-3 py-2 rounded-lg bg-[#808000]/15 text-[#556b2f] border border-[#808000]/30 font-semibold"
-                          >
-                            Finish
-                          </button>
+
+                          {canShowIndividualFinish && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                queueFinishAction({
+                                  label: bill.label,
+                                  orderIds: bill.orderIds,
+                                })
+                              }
+                              className="text-xs px-3 py-2 rounded-lg bg-[#808000]/15 text-[#556b2f] border border-[#808000]/30 font-semibold"
+                            >
+                              Finish
+                            </button>
+                          )}
+
                           <button
                             onClick={() => updateOrderStatus(bill.orderIds[0], "cancelled")}
                             className="text-xs px-3 py-2 rounded-lg bg-red-100 text-red-700 border border-red-200 font-semibold"
@@ -564,6 +606,33 @@ export default function AdminPOS() {
           </div>
         </section>
       </div>
+
+      {confirmFinishAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+            <h3 className="text-2xl font-extrabold text-primary">Finish Confirmation</h3>
+            <p className="mt-3 text-sm text-secondary">
+              Are you sure you want to finish {confirmFinishAction.label.toLowerCase()}?
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmFinishAction(null)}
+                className="flex-1 rounded-2xl bg-surface-container px-5 py-4 text-sm font-bold text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmQueuedFinish}
+                className="flex-1 rounded-2xl bg-primary px-5 py-4 text-sm font-bold text-on-primary"
+              >
+                Confirm Finish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

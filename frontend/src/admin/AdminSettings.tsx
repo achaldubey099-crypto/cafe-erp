@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, ExternalLink, Save, Upload } from 'lucide-react';
+import { Copy, ExternalLink, Save, Trash2, Upload } from 'lucide-react';
 import API from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -160,6 +160,13 @@ export default function AdminSettings() {
     }
   };
 
+  const handleRemoveLogo = () => {
+    setLogoFile(null);
+    setForm((prev) => ({ ...prev, logoUrl: '' }));
+    setError('');
+    setMessage('Logo removed. Click Save Branding to apply the change.');
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div>
@@ -221,6 +228,16 @@ export default function AdminSettings() {
                 <span className="text-sm text-secondary">
                   {logoFile?.name || 'No file selected'}
                 </span>
+                {(logoFile || form.logoUrl) && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLogo}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-red-700"
+                  >
+                    <Trash2 size={14} />
+                    Remove Logo
+                  </button>
+                )}
               </div>
               <p className="text-xs text-secondary">Upload a new image here if you do not want to use a logo URL.</p>
             </div>
