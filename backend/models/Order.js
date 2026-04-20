@@ -108,6 +108,56 @@ const orderSchema = new mongoose.Schema(
       enum: ['UPI', 'Card', 'Counter'],
       default: 'UPI',
     },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'partial', 'paid'],
+      default: 'pending',
+      index: true,
+    },
+    amountPaid: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    paymentLogs: [
+      {
+        amount: {
+          type: Number,
+          default: 0,
+        },
+        status: {
+          type: String,
+          enum: ['pending', 'paid'],
+          default: 'pending',
+        },
+        method: {
+          type: String,
+          enum: ['UPI', 'Card', 'Counter'],
+          default: 'UPI',
+        },
+        source: {
+          type: String,
+          enum: ['online', 'counter', 'admin'],
+          default: 'online',
+        },
+        transactionId: {
+          type: String,
+          default: '',
+        },
+        razorpayOrderId: {
+          type: String,
+          default: '',
+        },
+        razorpayPaymentId: {
+          type: String,
+          default: '',
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     // 👥 SPLIT BILL
     splitBill: {

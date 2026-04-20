@@ -35,6 +35,11 @@ const menuSchema = new mongoose.Schema({
     isFeatured: {
         type: Boolean,
         default: false
+    },
+    isAvailable: {
+        type: Boolean,
+        default: true,
+        index: true,
     }
 });
 

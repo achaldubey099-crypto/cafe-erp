@@ -10,7 +10,9 @@ import {
   LayoutDashboard,
   Settings, 
   ShieldCheck,
-  LogOut
+  LogOut,
+  MessageSquareText,
+  ReceiptIndianRupee
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +35,8 @@ export default function AdminSidebar() {
         { to: '/admin/inventory', icon: Package, label: 'Inventory' },
         { to: '/admin/staff', icon: Users, label: 'Staff' },
         { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
+        { to: '/admin/feedback', icon: MessageSquareText, label: 'Feedback' },
+        { to: '/admin/payments', icon: ReceiptIndianRupee, label: 'Payments' },
       ];
 
   return (

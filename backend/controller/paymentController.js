@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const Order = require('../models/Order');
+const { ensureRestaurantForUser } = require('../utils/restaurantScope');
 
 /**
  * Verify Razorpay payment signature
@@ -24,7 +27,22 @@ const verifyPayment = (req, res) => {
       .digest('hex');
 
     if (generated_signature === razorpay_signature) {
-      return res.json({ success: true });
+      const verificationToken = jwt.sign(
+        {
+          type: 'payment-verification',
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+
+      return res.json({
+        success: true,
+        verificationToken,
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+      });
     }
 
     return res.status(400).json({ success: false });
@@ -60,7 +78,63 @@ const createOrder = async (req, res) => {
   }
 };
 
+const getRecentPaymentLogs = async (req, res) => {
+  try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const matchStage = {
+      paymentLogs: { $exists: true, $ne: [] },
+    };
+
+    if (restaurantId) {
+      matchStage.restaurantId = restaurantId;
+    }
+
+    const payments = await Order.aggregate([
+      { $match: matchStage },
+      { $unwind: "$paymentLogs" },
+      {
+        $match: {
+          "paymentLogs.status": "paid",
+          "paymentLogs.createdAt": { $gte: since },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          orderId: "$_id",
+          orderNumber: "$orderNumber",
+          tableId: "$tableId",
+          grandTotal: "$grandTotal",
+          amountPaid: "$amountPaid",
+          paymentStatus: "$paymentStatus",
+          method: "$paymentLogs.method",
+          amount: "$paymentLogs.amount",
+          source: "$paymentLogs.source",
+          transactionId: "$paymentLogs.transactionId",
+          razorpayOrderId: "$paymentLogs.razorpayOrderId",
+          razorpayPaymentId: "$paymentLogs.razorpayPaymentId",
+          createdAt: "$paymentLogs.createdAt",
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+
+    res.json({
+      payments,
+      summary: {
+        totalPayments: payments.length,
+        totalCollected: payments.reduce((sum, payment) => sum + (payment.amount || 0), 0),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   verifyPayment,
   createOrder,
+  getRecentPaymentLogs,
 };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, ExternalLink, Save } from 'lucide-react';
+import { Copy, ExternalLink, Save, Upload } from 'lucide-react';
 import API from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -203,12 +203,25 @@ export default function AdminSettings() {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Upload Restaurant Image</label>
               <input
+                id="restaurant-logo-file"
                 type="file"
                 accept="image/*"
                 onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm outline-none"
+                className="hidden"
                 disabled={loading}
               />
+              <div className="flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor="restaurant-logo-file"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-outline/10 bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface"
+                >
+                  <Upload size={14} />
+                  Upload File
+                </label>
+                <span className="text-sm text-secondary">
+                  {logoFile?.name || 'No file selected'}
+                </span>
+              </div>
               <p className="text-xs text-secondary">Upload a new image here if you do not want to use a logo URL.</p>
             </div>
           </div>

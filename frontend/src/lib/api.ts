@@ -15,9 +15,7 @@ const rawEnvApi =
 
 const normalizedApiOrigin = rawEnvApi
   ? rawEnvApi.replace(/\/$/, "").replace(/\/api$/, "")
-  : import.meta.env.PROD
-    ? "https://cafe-erp-backend.onrender.com"
-    : "";
+  : "";
 
 const API = axios.create({
   baseURL: normalizedApiOrigin ? `${normalizedApiOrigin}/api` : "/api",

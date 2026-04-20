@@ -56,7 +56,7 @@ exports.getPublicMenu = async (req, res) => {
       return res.status(400).json({ message: "Restaurant and table access are required" });
     }
 
-    let filter = applyMenuFilters({ restaurantId: restaurant._id }, { category, search });
+    let filter = applyMenuFilters({ restaurantId: restaurant._id, isAvailable: { $ne: false } }, { category, search });
     let query = Menu.find(filter);
 
     if (sort === "price_asc") query = query.sort({ price: 1 });
@@ -199,7 +199,7 @@ exports.getFeaturedItem = async (req, res) => {
 
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, price, category, image, isFeatured } = req.body;
+    const { name, price, category, image, isFeatured, isAvailable } = req.body;
     const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
     if (!restaurantId && !cafeId) {
@@ -227,6 +227,7 @@ exports.createMenuItem = async (req, res) => {
         `https://picsum.photos/400?random=${Math.floor(Math.random() * 10000)}`,
       imagePublicId: uploadedImage?.public_id || "",
       isFeatured: String(isFeatured) === "true",
+      isAvailable: isAvailable !== undefined ? String(isAvailable) !== "false" : true,
     });
 
     res.status(201).json({ message: "Menu item created successfully", item });
@@ -238,7 +239,7 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, image, isFeatured } = req.body;
+    const { name, price, category, image, isFeatured, isAvailable } = req.body;
     const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
 
     if (!restaurantId && !cafeId) {
@@ -261,6 +262,7 @@ exports.updateMenuItem = async (req, res) => {
     item.category = category?.trim() || item.category;
     item.price = price !== undefined && price !== "" ? Number(price) : item.price;
     item.isFeatured = isFeatured !== undefined ? String(isFeatured) === "true" : item.isFeatured;
+    item.isAvailable = isAvailable !== undefined ? String(isAvailable) !== "false" : item.isAvailable;
 
     if (uploadedImage?.secure_url) {
       item.image = uploadedImage.secure_url;
@@ -340,6 +342,7 @@ exports.bulkUploadMenu = async (req, res) => {
           category: data.category?.trim(),
           image: imageUrl || `https://placehold.co/400x400/F5F1E8/2D2418/png?text=${placeholderText}`,
           isFeatured: ["true", "1", "yes"].includes(featuredValue),
+          isAvailable: String(data.isAvailable ?? data.available ?? "true").trim().toLowerCase() !== "false",
         };
 
         if (!cleanedItem.name || !Number.isFinite(cleanedItem.price) || !cleanedItem.category) {

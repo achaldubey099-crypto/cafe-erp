@@ -26,6 +26,8 @@ import Staff from "./admin/AdminStaff";
 import Analytics from "./admin/AdminAnalytics";
 import Settings from "./admin/AdminSettings";
 import Orders from "./admin/AdminOrders.tsx";
+import Feedback from "./admin/AdminFeedback";
+import PaymentLogs from "./admin/AdminPaymentLogs";
 import AdminLogin from "./admin/pages/AdminLogin";
 import SuperAdminLogin from "./admin/pages/SuperAdminLogin";
 import SuperAdminRestaurants from "./admin/SuperAdminRestaurants";
@@ -96,6 +98,8 @@ export default function App() {
             <Route path="inventory" element={<Inventory />} />
             <Route path="staff" element={<Staff />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="feedback" element={<Feedback />} />
+            <Route path="payments" element={<PaymentLogs />} />
             <Route path="settings" element={<Settings />} />
           </Route>
 

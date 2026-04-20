@@ -27,6 +27,13 @@ type RazorpayOrderResponse = {
   total?: number;
 };
 
+type PaymentVerificationResponse = {
+  success: boolean;
+  verificationToken?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+};
+
 type CheckoutNotice = {
   kind: "success" | "error";
   title: string;
@@ -78,8 +85,8 @@ export default function Checkout() {
     0
   );
 
-  const platformFee = 20;
-  const tax = Math.round(subtotal * 0.05);
+  const platformFee = 1.2;
+  const tax = 0.8;
 
   const total = subtotal + platformFee + tax;
   const perPerson = total / people;
@@ -95,7 +102,17 @@ export default function Checkout() {
   };
 
   // ================= PLACE ORDER =================
-  const placeOrder = async (paymentMethod: string) => {
+  const placeOrder = async (
+    paymentMethod: string,
+    payment?: {
+      status: "paid";
+      amountPaid: number;
+      verificationToken: string;
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+      source?: "online";
+    }
+  ) => {
     try {
       // ❌ VALIDATION
       if (!tableId) {
@@ -148,6 +165,7 @@ export default function Checkout() {
           isSplit: people > 1,
           peopleCount: people,
         },
+        payment,
       };
 
       console.log("📦 Sending Order:", orderData);
@@ -208,13 +226,30 @@ export default function Checkout() {
           console.log("Payment Success", response);
 
           try {
-            await API.post("/payment/verify", response);
+            const verifyRes = await API.post<PaymentVerificationResponse>("/payment/verify", response);
+
+            if (!verifyRes.data?.success || !verifyRes.data?.verificationToken) {
+              throw new Error("Payment verification failed");
+            }
+
+            await placeOrder(paymentMethod, {
+              status: "paid",
+              amountPaid: total,
+              verificationToken: verifyRes.data.verificationToken,
+              razorpayOrderId: verifyRes.data.razorpayOrderId || response.razorpay_order_id,
+              razorpayPaymentId: verifyRes.data.razorpayPaymentId || response.razorpay_payment_id,
+              source: "online",
+            });
           } catch (err) {
             console.error("Payment verify failed:", err);
+            showNotice({
+              kind: "error",
+              title: "Payment Verification Failed",
+              message: "We received the payment response but could not confirm it securely. Please contact the counter before ordering again.",
+              actionLabel: "Close",
+            });
+            return;
           }
-
-          // after successful payment verification, place the order in our system
-          await placeOrder(paymentMethod);
         },
 
         theme: {

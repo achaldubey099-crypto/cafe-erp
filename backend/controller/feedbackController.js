@@ -1,8 +1,11 @@
 const Feedback = require('../models/Feedback');
 const Order = require('../models/Order');
+const { ensureRestaurantForUser } = require('../utils/restaurantScope');
+const { getPaginationParams, buildPaginationMeta } = require('../utils/pagination');
 
 const serializeFeedback = (feedback) => ({
   _id: feedback._id,
+  restaurantId: feedback.restaurantId || feedback.orderId?.restaurantId || null,
   orderId: feedback.orderId,
   userId: feedback.userId,
   rating: feedback.rating,
@@ -52,11 +55,12 @@ exports.submitFeedback = async (req, res) => {
       return res.status(400).json({ message: 'Rating must be a number from 1 to 5' });
     }
 
-    await ensureCustomerOwnsOrder(orderId, req.user.id);
+    const order = await ensureCustomerOwnsOrder(orderId, req.user.id);
 
     const feedback = await Feedback.findOneAndUpdate(
       { orderId, userId: req.user.id },
       {
+        restaurantId: order.restaurantId || null,
         orderId,
         userId: req.user.id,
         rating: numericRating,
@@ -68,6 +72,56 @@ exports.submitFeedback = async (req, res) => {
     res.status(201).json({
       message: 'Review saved',
       feedback: serializeFeedback(feedback),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+exports.getAdminFeedback = async (req, res) => {
+  try {
+    const { restaurantId } = await ensureRestaurantForUser(req);
+    const { page, limit, skip } = getPaginationParams(req.query, { defaultLimit: 10, maxLimit: 50 });
+
+    const feedbackDocs = await Feedback.find(
+      restaurantId ? { restaurantId } : {}
+    )
+      .populate("userId", "name email")
+      .populate("orderId", "tableId orderNumber grandTotal status createdAt restaurantId")
+      .sort({ createdAt: -1, _id: -1 });
+
+    const filteredFeedback = restaurantId
+      ? feedbackDocs.filter((item) => String(item.restaurantId || item.orderId?.restaurantId || "") === String(restaurantId))
+      : feedbackDocs;
+
+    const totalItems = filteredFeedback.length;
+    const paginated = filteredFeedback.slice(skip, skip + limit).map((feedback) => ({
+      _id: feedback._id,
+      rating: feedback.rating,
+      comment: feedback.comment,
+      createdAt: feedback.createdAt,
+      user: feedback.userId
+        ? {
+            _id: feedback.userId._id,
+            name: feedback.userId.name || "Customer",
+            email: feedback.userId.email || "",
+          }
+        : null,
+      order: feedback.orderId
+        ? {
+            _id: feedback.orderId._id,
+            tableId: feedback.orderId.tableId,
+            orderNumber: feedback.orderId.orderNumber,
+            grandTotal: feedback.orderId.grandTotal,
+            status: feedback.orderId.status,
+            createdAt: feedback.orderId.createdAt,
+          }
+        : null,
+    }));
+
+    res.json({
+      feedback: paginated,
+      pagination: buildPaginationMeta({ page, limit, totalItems }),
     });
   } catch (error) {
     res.status(error.status || 500).json({ message: error.message });

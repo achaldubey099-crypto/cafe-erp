@@ -8,6 +8,7 @@ export interface Product {
   image?: string;
   category: string;
   isFeatured?: boolean;
+  isAvailable?: boolean;
 }
 
 export type MenuItem = Product;
@@ -43,6 +44,8 @@ export interface Order {
   platformFee?: number;
   serviceTax?: number;
   paymentMethod?: string;
+  paymentStatus?: "pending" | "partial" | "paid";
+  amountPaid?: number;
   estimatedTime?: string;
   orderNumber?: number;
   userId?: string;

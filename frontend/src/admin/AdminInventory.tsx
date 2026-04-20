@@ -282,6 +282,29 @@ export default function AdminInventory() {
       setError(err?.response?.data?.message || 'Failed to delete menu item');
     }
   };
+
+  const handleToggleAvailability = async (product: Product) => {
+    try {
+      setError('');
+      setMessage('');
+
+      const body = new FormData();
+      body.append('isAvailable', String(!(product.isAvailable ?? true)));
+
+      const res = await API.put<CreateMenuResponse>(`/menu/${product._id}`, body);
+      setProducts((prev) =>
+        prev.map((item) => (item._id === product._id ? res.data.item : item))
+      );
+      setMessage(
+        res.data.item.isAvailable === false
+          ? `${product.name} marked out of stock.`
+          : `${product.name} marked in stock.`
+      );
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.message || 'Failed to update stock status');
+    }
+  };
   
   const stats = [
     { label: "Menu Items", value: String(summary.totalItems), sub: loading ? "Loading..." : "Across all pages", icon: Package, color: "primary" },
@@ -413,10 +436,24 @@ export default function AdminInventory() {
                   </td>
                   <td className="py-4 px-6 font-headline font-bold text-on-surface">₹{product.price}</td>
                   <td className="py-4 px-6">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
-                      In Stock
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAvailability(product)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold transition-colors",
+                        product.isAvailable === false
+                          ? "bg-slate-200 text-slate-600"
+                          : "bg-green-50 text-green-700"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          product.isAvailable === false ? "bg-slate-500" : "bg-green-600"
+                        )}
+                      />
+                      {product.isAvailable === false ? "Out of Stock" : "In Stock"}
+                    </button>
                   </td>
                   <td className="py-4 px-8 text-right">
                     <div className="flex items-center justify-end gap-2">

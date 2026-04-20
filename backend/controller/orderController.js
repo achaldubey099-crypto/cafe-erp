@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 const Order = require("../models/Order");
 const { ADMIN_ROLES } = require("../middleware/auth");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
@@ -69,9 +70,62 @@ const buildOrderSearchFilter = (search) => {
   return { $or: searchFilters };
 };
 
+const buildPaymentState = ({ payment, paymentMethod, grandTotal }) => {
+  if (!payment || payment.status !== "paid") {
+    return {
+      paymentStatus: "pending",
+      amountPaid: 0,
+      paymentLogs: [],
+    };
+  }
+
+  if (!payment.verificationToken) {
+    const error = new Error("Verified payment token is required");
+    error.status = 400;
+    throw error;
+  }
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(payment.verificationToken, process.env.JWT_SECRET);
+  } catch {
+    const error = new Error("Payment verification token is invalid or expired");
+    error.status = 400;
+    throw error;
+  }
+
+  if (decodedToken?.type !== "payment-verification") {
+    const error = new Error("Payment verification token is invalid");
+    error.status = 400;
+    throw error;
+  }
+
+  const amountPaid = Math.min(
+    grandTotal,
+    Math.max(0, Number(payment.amountPaid) || grandTotal)
+  );
+
+  return {
+    paymentStatus: amountPaid >= grandTotal ? "paid" : "partial",
+    amountPaid,
+    paymentLogs: [
+      {
+        amount: amountPaid,
+        status: "paid",
+        method: paymentMethod,
+        source: payment.source === "counter" ? "counter" : "online",
+        transactionId: decodedToken.razorpayPaymentId || payment.transactionId || "",
+        razorpayOrderId: decodedToken.razorpayOrderId || payment.razorpayOrderId || "",
+        razorpayPaymentId: decodedToken.razorpayPaymentId || payment.razorpayPaymentId || "",
+        createdAt: new Date(),
+      },
+    ],
+  };
+};
+
 exports.createOrder = async (req, res) => {
   try {
-    const { sessionId, items, paymentMethod, splitBill } = req.body;
+    const { sessionId, items, paymentMethod, splitBill, payment } = req.body;
 
     const tenantRestaurant = req.tenant?.restaurant;
     const tenantTable = req.tenant?.table;
@@ -91,6 +145,11 @@ exports.createOrder = async (req, res) => {
     const platformFee = 1.2;
     const serviceTax = 0.8;
     const grandTotal = totalAmount + platformFee + serviceTax;
+    const paymentState = buildPaymentState({
+      payment,
+      paymentMethod: normalizedPaymentMethod,
+      grandTotal,
+    });
 
     let splitData = {
       isSplit: false,
@@ -117,6 +176,9 @@ exports.createOrder = async (req, res) => {
       userId: req.user?.role === "user" ? req.user.id : null,
       items,
       paymentMethod: normalizedPaymentMethod,
+      paymentStatus: paymentState.paymentStatus,
+      amountPaid: paymentState.amountPaid,
+      paymentLogs: paymentState.paymentLogs,
       totalAmount,
       platformFee,
       serviceTax,
