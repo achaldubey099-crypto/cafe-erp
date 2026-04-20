@@ -3,10 +3,12 @@ import { ArrowLeft, Edit2, Stars, ChevronRight, LogIn, LogOut } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 
 import API from '../lib/api';
-import { getTableId } from '../lib/table';
-import { Order } from '../types';
+import PaginationControls from '../components/PaginationControls';
 import { useAuth } from '../context/AuthContext';
+import { createPaginationState } from '../lib/pagination';
+import { getTableId } from '../lib/table';
 import { getCustomerMenuPath, getTenantContext } from '../lib/tenant';
+import { Order, PaginationMeta } from '../types';
 
 interface ProfileResponse {
   user: {
@@ -29,6 +31,14 @@ interface FavoriteResponse {
   } | null;
 }
 
+interface PaginatedOrdersResponse {
+  orders: Order[];
+  pagination: PaginationMeta;
+  summary?: {
+    totalSpent: number;
+  };
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const menuPath = getCustomerMenuPath();
@@ -36,9 +46,15 @@ export default function Profile() {
   const [favorites, setFavorites] = useState<FavoriteResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersPagination, setOrdersPagination] = useState<PaginationMeta>(createPaginationState(5));
 
   const { customer, logoutCustomer } = useAuth();
   const isLoggedIn = !!customer;
+
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [customer?._id]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -46,15 +62,21 @@ export default function Profile() {
         setLoading(true);
         setError('');
 
-        if (isLoggedIn) {
-          // Logged-in: fetch favorites and past orders by userId
+        if (isLoggedIn && customer?._id) {
           const [ordersRes, favoritesRes] = await Promise.all([
-            API.get<Order[]>('/orders', { params: { userId: customer._id } }),
+            API.get<PaginatedOrdersResponse>('/orders', {
+              params: {
+                paginate: true,
+                userId: customer._id,
+                page: ordersPage,
+                limit: ordersPagination.limit,
+              },
+            }),
             API.get<FavoriteResponse[]>('/favorites', { params: { userId: customer._id } }),
           ]);
 
-          const pastOrders = ordersRes.data || [];
-          const totalSpent = pastOrders.reduce((s, o) => s + (o.grandTotal || 0), 0);
+          const pastOrders = ordersRes.data.orders || [];
+          const totalSpent = ordersRes.data.summary?.totalSpent || 0;
           const points = Math.floor(totalSpent * 0.1);
           const currentTableId = getTableId();
 
@@ -66,10 +88,11 @@ export default function Profile() {
           });
 
           setFavorites(favoritesRes.data || []);
+          setOrdersPagination(ordersRes.data.pagination || createPaginationState(ordersPagination.limit));
         } else {
-          // Guest: do not fetch user-specific data
           setProfile(null);
           setFavorites([]);
+          setOrdersPagination(createPaginationState(5));
         }
       } catch (err) {
         console.error(err);
@@ -80,14 +103,14 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [customer]);
+  }, [customer, isLoggedIn, ordersPage, ordersPagination.limit]);
 
   const handleLogout = () => {
     logoutCustomer();
     navigate(menuPath);
   };
 
-  const userName = isLoggedIn ? (customer.name || 'User') : (profile?.user?.name || 'Guest User');
+  const userName = isLoggedIn ? (customer?.name || 'User') : (profile?.user?.name || 'Guest User');
   const tenant = getTenantContext();
   const tableId = getTableId();
   const tableLabel = tenant.tableSlug || tenant.tableAccessKey || tenant.tablePublicId;
@@ -134,7 +157,6 @@ export default function Profile() {
           </section>
         )}
 
-        {/* User Info */}
         <section className="flex flex-col items-center text-center">
           <div className="relative group">
             <div className="w-28 h-28 rounded-full p-1 bg-gradient-to-tr from-primary to-primary-container">
@@ -178,7 +200,6 @@ export default function Profile() {
           )}
         </section>
 
-        {/* Loyalty Card */}
         <section className="bg-primary text-on-primary rounded-3xl p-6 shadow-xl relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex justify-between items-start">
@@ -191,7 +212,7 @@ export default function Profile() {
             <div className="mt-6 space-y-2">
               <div className="flex justify-between text-xs text-on-primary/90 font-medium">
                 <span>Progress</span>
-                <span>{totalSpent > 0 ? `₹${totalSpent.toFixed(2)} spent` : 'Place your first order to earn points'}</span>
+                <span>{totalSpent > 0 ? `â‚¹${totalSpent.toFixed(2)} spent` : 'Place your first order to earn points'}</span>
               </div>
               <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
                 <div className="h-full bg-on-primary-container rounded-full" style={{ width: progressWidth }} />
@@ -207,7 +228,6 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Favorites */}
         {isLoggedIn && (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
@@ -230,7 +250,7 @@ export default function Profile() {
                       <div>
                         <p className="font-headline font-bold text-sm text-on-surface leading-tight">{item.name}</p>
                         {typeof item.price === 'number' && (
-                          <p className="text-xs font-bold text-primary mt-1">₹{item.price}</p>
+                          <p className="text-xs font-bold text-primary mt-1">â‚¹{item.price}</p>
                         )}
                       </div>
                     </div>
@@ -243,33 +263,44 @@ export default function Profile() {
           </section>
         )}
 
-        {/* Past Orders */}
         {isLoggedIn && (
           <section className="space-y-4">
             <h3 className="font-headline font-bold text-lg text-on-surface">Past Orders</h3>
             <div className="space-y-3">
               {pastOrders.length > 0 ? (
-                pastOrders.map((order) => (
-                  <div key={order._id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order._id}</p>
-                        <p className="font-body text-xs text-on-surface-variant">{order.createdAt}</p>
+                <>
+                  {pastOrders.map((order) => (
+                    <div key={order._id} className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-3 hover:bg-surface-container transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-headline font-extrabold text-sm text-on-surface">Order #{order._id}</p>
+                          <p className="font-body text-xs text-on-surface-variant">{order.createdAt}</p>
+                        </div>
+                        <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          {order.status}
+                        </span>
                       </div>
-                      <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
-                        {order.status}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-end gap-4">
-                      <div className="space-y-1">
-                        <p className="font-body text-sm text-on-surface">
-                          {order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}
-                        </p>
-                        <p className="font-headline font-bold text-primary">₹{order.grandTotal.toFixed(2)}</p>
+                      <div className="flex justify-between items-end gap-4">
+                        <div className="space-y-1">
+                          <p className="font-body text-sm text-on-surface">
+                            {order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}
+                          </p>
+                          <p className="font-headline font-bold text-primary">â‚¹{order.grandTotal.toFixed(2)}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  <PaginationControls
+                    pagination={ordersPagination}
+                    itemLabel="past orders"
+                    disabled={loading}
+                    onPageChange={setOrdersPage}
+                    onLimitChange={(limit) => {
+                      setOrdersPagination((current) => ({ ...current, limit }));
+                      setOrdersPage(1);
+                    }}
+                  />
+                </>
               ) : (
                 <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">No past orders found for this table.</div>
               )}
@@ -277,7 +308,6 @@ export default function Profile() {
           </section>
         )}
 
-        {/* Logout */}
         {isLoggedIn && (
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-red-500/20 text-red-500 font-bold tracking-tight hover:bg-red-500/5 active:scale-[0.98] transition-all">
             <LogOut size={20} />

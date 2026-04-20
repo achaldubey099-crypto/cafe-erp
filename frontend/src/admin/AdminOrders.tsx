@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Search,
   Download,
@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 
 import API from "../lib/api";
+import PaginationControls from "../components/PaginationControls";
+import { createPaginationState } from "../lib/pagination";
 import { cn } from "../lib/utils";
+import { PaginationMeta } from "../types";
 
 type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
 
@@ -31,6 +34,11 @@ interface AdminOrder {
   grandTotal: number;
   orderType?: "dine-in" | "takeaway";
   createdAt: string;
+}
+
+interface PaginatedOrdersResponse {
+  orders: AdminOrder[];
+  pagination: PaginationMeta;
 }
 
 // Prioritize the 3-stage pipeline for order processing
@@ -60,6 +68,8 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(10));
 
   const statusStyles: Record<OrderStatus, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -77,13 +87,23 @@ export default function AdminOrders() {
     cancelled: <XCircle size={14} />,
   };
 
-  const loadOrders = async () => {
+  const loadOrders = async (pageNumber = page, limitNumber = pagination.limit, nextFilter = filter, nextSearch = search) => {
     try {
       setLoading(true);
       setError("");
 
-      const res = await API.get<AdminOrder[]>("/orders");
-      setOrders(res.data || []);
+      const res = await API.get<PaginatedOrdersResponse>("/orders", {
+        params: {
+          paginate: true,
+          page: pageNumber,
+          limit: limitNumber,
+          status: nextFilter === "all" ? undefined : nextFilter,
+          search: nextSearch.trim() || undefined,
+        },
+      });
+
+      setOrders(res.data.orders || []);
+      setPagination(res.data.pagination || createPaginationState(limitNumber));
     } catch (err) {
       console.error(err);
       setError("Failed to load orders");
@@ -101,30 +121,13 @@ export default function AdminOrders() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  const visibleOrders = useMemo(() => {
-    const base = filter === "all" ? orders : orders.filter((o) => o.status === filter);
-    const term = search.trim().toLowerCase();
-
-    if (!term) {
-      return base;
-    }
-
-    return base.filter((order) => {
-      const orderIdMatch = order._id.toLowerCase().includes(term);
-      const tableMatch = `table ${order.tableId}`.includes(term);
-      const itemMatch = order.items.some((item) => (item.name || "").toLowerCase().includes(term));
-      return orderIdMatch || tableMatch || itemMatch;
-    });
-  }, [orders, filter, search]);
+  }, [page, pagination.limit, filter, search]);
 
   const handleStatusUpdate = async (orderId: string, status: UpdatableStatus) => {
     try {
       setError("");
-      const res = await API.put<{ order: AdminOrder }>(`/orders/${orderId}`, { status });
-      const updated = res.data.order || res.data;
-      setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, ...updated } : o)));
+      await API.put<{ order: AdminOrder }>(`/orders/${orderId}`, { status });
+      await loadOrders(page, pagination.limit, filter, search);
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || "Failed to update order status");
@@ -135,7 +138,12 @@ export default function AdminOrders() {
     try {
       setError("");
       await API.delete(`/admin-orders/${orderId}`);
-      setOrders((prev) => prev.filter((order) => order._id !== orderId));
+      const nextPage = orders.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await loadOrders(nextPage, pagination.limit, filter, search);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || "Failed to delete order");
@@ -161,7 +169,7 @@ export default function AdminOrders() {
       return text;
     };
 
-    const rows = visibleOrders.map((order) => {
+    const rows = orders.map((order) => {
       const items = order.items
         .map((item) => `${item.name || `Item ${item.itemId}`} x${item.quantity}`)
         .join(" | ");
@@ -204,7 +212,9 @@ export default function AdminOrders() {
             <Download size={18} /> Export
           </button>
           <button
-            onClick={loadOrders}
+            onClick={() => {
+              void loadOrders(page, pagination.limit, filter, search);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
           >
             Refresh Feed
@@ -217,7 +227,10 @@ export default function AdminOrders() {
           {FILTERS.map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => {
+                setFilter(f);
+                setPage(1);
+              }}
               className={cn(
                 "px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap",
                 filter === f
@@ -235,8 +248,11 @@ export default function AdminOrders() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order, table, item..."
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by exact order ID, table, item..."
             className="w-full bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
         </div>
@@ -260,7 +276,7 @@ export default function AdminOrders() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline/5">
-              {!loading && visibleOrders.length === 0 && (
+              {!loading && orders.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-sm text-secondary">
                     No orders found.
@@ -268,7 +284,7 @@ export default function AdminOrders() {
                 </tr>
               )}
 
-              {visibleOrders.map((order) => {
+              {orders.map((order) => {
                 const canUpdate = order.status === "pending" || order.status === "preparing" || order.status === "ready";
 
                 return (
@@ -355,9 +371,16 @@ export default function AdminOrders() {
         </div>
 
         <div className="p-6 border-t border-outline/5 flex justify-between items-center bg-surface-container-low/20">
-          <p className="text-xs text-secondary font-medium">
-            {loading ? "Loading orders..." : `Showing ${visibleOrders.length} order(s)`}
-          </p>
+          <PaginationControls
+            pagination={pagination}
+            itemLabel="orders"
+            disabled={loading}
+            onPageChange={setPage}
+            onLimitChange={(limit) => {
+              setPagination((current) => ({ ...current, limit }));
+              setPage(1);
+            }}
+          />
         </div>
       </div>
     </div>

@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
 const { protectAdmin } = require('./middleware/auth');
 
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 // ================= DB CONNECTION =================
 connectDB();
@@ -108,6 +111,29 @@ app.use('/api/inventory', protectAdmin, inventoryRoutes);
 // ================= TEST ROUTE =================
 app.get('/', (req, res) => {
     res.send('Cafe ERP Backend Running');
+});
+
+// ================= HEALTH ROUTES =================
+app.get('/health', (req, res) => {
+    const dbReady = mongoose.connection.readyState === 1;
+    const statusCode = dbReady ? 200 : 503;
+
+    res.status(statusCode).json({
+        status: dbReady ? 'ok' : 'degraded',
+        uptime: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+        checks: {
+            api: 'ok',
+            mongodb: dbReady ? 'ok' : 'down'
+        }
+    });
+});
+
+app.get('/health/live', (_req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // ================= ERROR HANDLING =================

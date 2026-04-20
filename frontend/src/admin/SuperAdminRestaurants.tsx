@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import API from "../lib/api";
+import PaginationControls from "../components/PaginationControls";
+import { createPaginationState } from "../lib/pagination";
+import { PaginationMeta } from "../types";
 
 type RestaurantRecord = {
   _id: string;
@@ -11,6 +15,11 @@ type RestaurantRecord = {
   owner?: { _id: string; name: string; email: string; status: "active" | "suspended" } | null;
 };
 
+interface RestaurantsResponse {
+  restaurants: RestaurantRecord[];
+  pagination: PaginationMeta;
+}
+
 export default function SuperAdminRestaurants() {
   const [restaurants, setRestaurants] = useState<RestaurantRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +27,9 @@ export default function SuperAdminRestaurants() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [origin, setOrigin] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(8));
   const [form, setForm] = useState({
     brandName: "",
     logoUrl: "",
@@ -27,11 +39,19 @@ export default function SuperAdminRestaurants() {
     tableCount: "8",
   });
 
-  const loadRestaurants = async () => {
+  const loadRestaurants = async (pageNumber = page, limitNumber = pagination.limit, searchTerm = search) => {
     try {
       setLoading(true);
-      const res = await API.get<RestaurantRecord[]>("/superadmin/restaurants");
-      setRestaurants(res.data || []);
+      const res = await API.get<RestaurantsResponse>("/superadmin/restaurants", {
+        params: {
+          paginate: true,
+          page: pageNumber,
+          limit: limitNumber,
+          search: searchTerm || undefined,
+        },
+      });
+      setRestaurants(res.data.restaurants || []);
+      setPagination(res.data.pagination || createPaginationState(limitNumber));
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to load restaurants");
     } finally {
@@ -41,7 +61,7 @@ export default function SuperAdminRestaurants() {
 
   useEffect(() => {
     loadRestaurants();
-  }, []);
+  }, [page, pagination.limit, search]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -66,7 +86,8 @@ export default function SuperAdminRestaurants() {
         tableCount: "8",
       });
       setSuccess("Cafe and owner credentials created successfully.");
-      loadRestaurants();
+      setPage(1);
+      await loadRestaurants(1, pagination.limit, search);
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to create restaurant");
     }
@@ -79,7 +100,7 @@ export default function SuperAdminRestaurants() {
       setSuccess("");
       const res = await API.patch<{ message: string }>(`/superadmin/restaurants/${restaurant._id}/owner/status`, { status });
       setSuccess(res.data?.message || "Owner credentials updated");
-      await loadRestaurants();
+      await loadRestaurants(page, pagination.limit, search);
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to update owner credentials");
     } finally {
@@ -110,7 +131,12 @@ export default function SuperAdminRestaurants() {
             )
       );
       setSuccess(res.data?.message || "Owner credentials deleted");
-      await loadRestaurants();
+      const nextPage = restaurants.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await loadRestaurants(nextPage, pagination.limit, search);
+      }
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to delete owner credentials");
     } finally {
@@ -137,6 +163,19 @@ export default function SuperAdminRestaurants() {
         <section className="bg-white rounded-3xl border border-outline/10 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-outline/10">
             <h2 className="text-xl font-headline font-bold text-primary">Restaurants</h2>
+            <div className="relative mt-4 max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                type="text"
+                placeholder="Search cafe, slug, owner..."
+                className="w-full rounded-2xl border-none bg-surface-container-low py-3 pl-10 pr-4 text-sm outline-none"
+              />
+            </div>
           </div>
           <div className="divide-y divide-outline/10">
             {loading ? (
@@ -202,6 +241,16 @@ export default function SuperAdminRestaurants() {
               </div>
             ))}
           </div>
+          <PaginationControls
+            pagination={pagination}
+            itemLabel="cafes"
+            disabled={loading}
+            onPageChange={setPage}
+            onLimitChange={(limit) => {
+              setPagination((current) => ({ ...current, limit }));
+              setPage(1);
+            }}
+          />
         </section>
 
         <section className="bg-white rounded-3xl border border-outline/10 shadow-sm p-6 space-y-4">

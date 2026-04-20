@@ -8,6 +8,7 @@ const Menu = require("../models/Menu");
 const Order = require("../models/Order");
 const { syncRestaurantAccessKey } = require("../utils/accessKeys");
 const { getTableSlug } = require("../utils/tableSlug");
+const { getPaginationParams, buildPaginationMeta, escapeRegex } = require("../utils/pagination");
 const ADMIN_ACCESS_ROLES = ["admin", "owner"];
 
 const slugify = (value) =>
@@ -156,15 +157,45 @@ const deleteAccessAccountByUser = async (user) => {
   };
 };
 
-const listRestaurants = async (_req, res) => {
+const listRestaurants = async (req, res) => {
   try {
+    const { search } = req.query;
+    const { page, limit, skip, shouldPaginate } = getPaginationParams(req.query, {
+      defaultLimit: 8,
+      maxLimit: 24,
+    });
     const restaurantDocs = await Restaurant.find().sort({ createdAt: -1 });
     await Promise.all(restaurantDocs.map((restaurant) => syncRestaurantAccessKey(restaurant)));
     const restaurants = restaurantDocs.map((restaurant) => restaurant.toObject());
     const owners = await User.find({ role: "owner" }, "name email restaurantId status").lean();
     const ownerMap = new Map(owners.map((owner) => [String(owner.restaurantId), owner]));
 
-    res.json(restaurants.map((restaurant) => serializeRestaurant(restaurant, ownerMap.get(String(restaurant._id)))));
+    const searchPattern = search ? new RegExp(escapeRegex(search), "i") : null;
+    const enrichedRestaurants = restaurants.map((restaurant) =>
+      serializeRestaurant(restaurant, ownerMap.get(String(restaurant._id)))
+    );
+    const filteredRestaurants = searchPattern
+      ? enrichedRestaurants.filter((restaurant) => (
+          searchPattern.test(restaurant.brandName || "") ||
+          searchPattern.test(restaurant.slug || "") ||
+          searchPattern.test(restaurant.publicRestaurantId || "") ||
+          searchPattern.test(restaurant.owner?.name || "") ||
+          searchPattern.test(restaurant.owner?.email || "")
+        ))
+      : enrichedRestaurants;
+
+    if (!shouldPaginate) {
+      return res.json(filteredRestaurants);
+    }
+
+    res.json({
+      restaurants: filteredRestaurants.slice(skip, skip + limit),
+      pagination: buildPaginationMeta({
+        page,
+        limit,
+        totalItems: filteredRestaurants.length,
+      }),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -288,8 +319,13 @@ const updateRestaurantOwner = async (req, res) => {
   }
 };
 
-const listAdminAccounts = async (_req, res) => {
+const listAdminAccounts = async (req, res) => {
   try {
+    const { search } = req.query;
+    const { page, limit, skip, shouldPaginate } = getPaginationParams(req.query, {
+      defaultLimit: 10,
+      maxLimit: 50,
+    });
     const admins = await User.find(
       { role: { $in: ADMIN_ACCESS_ROLES } },
       "name email role cafeId restaurantId authProvider status createdAt"
@@ -323,15 +359,37 @@ const listAdminAccounts = async (_req, res) => {
       const restaurant = restaurantId ? restaurantMap.get(String(restaurantId)) || null : null;
       return serializeAdminAccount(admin, cafe, restaurant);
     });
+    const searchPattern = search ? new RegExp(escapeRegex(search), "i") : null;
+    const filteredAdminAccounts = searchPattern
+      ? adminAccounts.filter((account) => (
+          searchPattern.test(account.name || "") ||
+          searchPattern.test(account.email || "") ||
+          searchPattern.test(account.role || "") ||
+          searchPattern.test(account.status || "") ||
+          searchPattern.test(account.cafeName || "") ||
+          searchPattern.test(account.restaurantName || "")
+        ))
+      : adminAccounts;
 
     res.json({
-      admins: adminAccounts,
+      admins: shouldPaginate
+        ? filteredAdminAccounts.slice(skip, skip + limit)
+        : filteredAdminAccounts,
       summary: {
         total: adminAccounts.length,
         admins: adminAccounts.filter((account) => account.role === "admin").length,
         owners: adminAccounts.filter((account) => account.role === "owner").length,
         cafes: new Set(adminAccounts.map((account) => String(account.cafeId || "")).filter(Boolean)).size,
       },
+      ...(shouldPaginate
+        ? {
+            pagination: buildPaginationMeta({
+              page,
+              limit,
+              totalItems: filteredAdminAccounts.length,
+            }),
+          }
+        : {}),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

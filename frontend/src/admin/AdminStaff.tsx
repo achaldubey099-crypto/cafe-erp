@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Shield, TrendingUp, Filter, Edit2, MoreVertical, X } from 'lucide-react';
+import { UserPlus, Search, Edit2, X } from 'lucide-react';
+import PaginationControls from '../components/PaginationControls';
 import { cn } from '../lib/utils';
 import API from '../lib/api';
+import { createPaginationState } from '../lib/pagination';
+import { PaginationMeta } from '../types';
 
 interface StaffMember {
   _id: string;
@@ -13,20 +16,35 @@ interface StaffMember {
   img?: string;
 }
 
+interface StaffResponse {
+  staff: StaffMember[];
+  pagination: PaginationMeta;
+}
+
 export default function AdminStaff() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(10));
 
   const [form, setForm] = useState({ name: '', email: '', role: 'barista' });
 
-  const loadStaff = async () => {
+  const loadStaff = async (pageNumber = page, limitNumber = pagination.limit, searchTerm = search) => {
     try {
       setLoading(true);
-      const res = await API.get<{ staff: StaffMember[] }>('/staff');
+      const res = await API.get<StaffResponse>('/staff', {
+        params: {
+          page: pageNumber,
+          limit: limitNumber,
+          search: searchTerm || undefined,
+        },
+      });
       setStaffList(res.data.staff || []);
+      setPagination(res.data.pagination || createPaginationState(limitNumber));
     } catch (err) {
       console.error(err);
       setError('Failed to load staff');
@@ -37,7 +55,7 @@ export default function AdminStaff() {
 
   useEffect(() => {
     loadStaff();
-  }, []);
+  }, [page, pagination.limit, search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -50,13 +68,13 @@ export default function AdminStaff() {
     try {
       setError('');
       if (editing) {
-        const res = await API.put<StaffMember>(`/staff/${editing._id}`, form);
-        setStaffList((prev) => prev.map((s) => (s._id === editing._id ? res.data : s)));
+        await API.put<StaffMember>(`/staff/${editing._id}`, form);
       } else {
-        const res = await API.post<StaffMember>('/staff', form);
-        setStaffList((prev) => [res.data, ...prev]);
+        await API.post<StaffMember>('/staff', form);
       }
       setIsModalOpen(false);
+      setPage(1);
+      await loadStaff(1, pagination.limit, search);
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to save staff');
@@ -73,7 +91,12 @@ export default function AdminStaff() {
     if (!confirm('Delete staff member?')) return;
     try {
       await API.delete(`/staff/${id}`);
-      setStaffList((prev) => prev.filter((s) => s._id !== id));
+      const nextPage = staffList.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await loadStaff(nextPage, pagination.limit, search);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to delete staff');
@@ -104,14 +127,19 @@ export default function AdminStaff() {
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-outline/5">
         <div className="px-8 py-6 flex items-center justify-between bg-surface-container-low/30">
-          <div className="flex gap-4">
-            <button className="px-4 py-2 bg-white rounded-lg text-xs font-bold text-primary shadow-sm">All Staff</button>
-            <button className="px-4 py-2 text-xs font-bold text-secondary hover:text-primary transition-colors">By Role</button>
+          <div className="relative w-full max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              type="text"
+              placeholder="Search by name, email, phone..."
+              className="w-full rounded-xl border-none bg-white py-3 pl-10 pr-4 text-sm outline-none"
+            />
           </div>
-          <button className="flex items-center gap-2 text-xs font-bold text-secondary hover:text-primary transition-colors">
-            <Filter size={18} />
-            Filters
-          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -179,6 +207,17 @@ export default function AdminStaff() {
             </tbody>
           </table>
         </div>
+
+        <PaginationControls
+          pagination={pagination}
+          itemLabel="staff members"
+          disabled={loading}
+          onPageChange={setPage}
+          onLimitChange={(limit) => {
+            setPagination((current) => ({ ...current, limit }));
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Add/Edit Modal */}

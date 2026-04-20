@@ -1,5 +1,6 @@
 const Staff = require("../models/Staff");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
+const { getPaginationParams, buildPaginationMeta, escapeRegex } = require("../utils/pagination");
 
 const getStaffScope = async (req) => {
   if (req.user?.role === "superadmin") {
@@ -57,8 +58,9 @@ const createStaff = async (req, res) => {
 // 📋 GET ALL STAFF
 const getAllStaff = async (req, res) => {
   try {
-    const { role, status, page = 1, limit = 10 } = req.query;
+    const { role, status, search } = req.query;
     const scope = await getStaffScope(req);
+    const { page, limit, skip } = getPaginationParams(req.query);
 
     if (scope === null) {
       return res.status(400).json({ message: "Cafe or restaurant context is required for staff access" });
@@ -68,15 +70,27 @@ const getAllStaff = async (req, res) => {
 
     if (role) query.role = role;
     if (status) query.status = status;
+    if (search) {
+      const searchPattern = new RegExp(escapeRegex(search), "i");
+      query.$or = [
+        { name: searchPattern },
+        { email: searchPattern },
+        { phone: searchPattern },
+      ];
+    }
 
     const staff = await Staff.find(query)
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .sort({ createdAt: -1 });
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1, _id: -1 });
 
     const total = await Staff.countDocuments(query);
 
-    res.json({ staff, total });
+    res.json({
+      staff,
+      total,
+      pagination: buildPaginationMeta({ page, limit, totalItems: total }),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

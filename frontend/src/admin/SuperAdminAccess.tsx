@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { KeyRound, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { KeyRound, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import API from "../lib/api";
+import PaginationControls from "../components/PaginationControls";
+import { createPaginationState } from "../lib/pagination";
+import { PaginationMeta } from "../types";
 
 type AdminAccount = {
   _id: string;
@@ -29,6 +32,12 @@ type AccessSummary = {
   cafes: number;
 };
 
+interface AdminAccessResponse {
+  admins: AdminAccount[];
+  summary: AccessSummary;
+  pagination: PaginationMeta;
+}
+
 export default function SuperAdminAccess() {
   const [admins, setAdmins] = useState<AdminAccount[]>([]);
   const [cafes, setCafes] = useState<CafeOption[]>([]);
@@ -43,6 +52,9 @@ export default function SuperAdminAccess() {
   const [busyAccountId, setBusyAccountId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(10));
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -51,11 +63,18 @@ export default function SuperAdminAccess() {
     cafeId: "",
   });
 
-  const loadAccessMonitor = async () => {
+  const loadAccessMonitor = async (pageNumber = page, limitNumber = pagination.limit, searchTerm = search) => {
     try {
       setLoading(true);
       const [adminRes, cafeRes] = await Promise.all([
-        API.get<{ admins: AdminAccount[]; summary: AccessSummary }>("/superadmin/admins"),
+        API.get<AdminAccessResponse>("/superadmin/admins", {
+          params: {
+            paginate: true,
+            page: pageNumber,
+            limit: limitNumber,
+            search: searchTerm || undefined,
+          },
+        }),
         API.get<CafeOption[]>("/superadmin/cafes"),
       ]);
       setAdmins(adminRes.data.admins || []);
@@ -67,6 +86,7 @@ export default function SuperAdminAccess() {
           cafes: 0,
         }
       );
+      setPagination(adminRes.data.pagination || createPaginationState(limitNumber));
       setCafes(cafeRes.data || []);
       setForm((current) => ({
         ...current,
@@ -81,7 +101,7 @@ export default function SuperAdminAccess() {
 
   useEffect(() => {
     loadAccessMonitor();
-  }, []);
+  }, [page, pagination.limit, search]);
 
   const handleCreateAdmin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -99,7 +119,8 @@ export default function SuperAdminAccess() {
         role: "admin",
         cafeId: form.cafeId || cafes[0]?._id || "",
       });
-      await loadAccessMonitor();
+      setPage(1);
+      await loadAccessMonitor(1, pagination.limit, search);
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to create admin");
     } finally {
@@ -122,7 +143,12 @@ export default function SuperAdminAccess() {
       setSuccess("");
       const res = await API.delete<{ message: string }>(`/superadmin/admins/${account._id}`);
       setSuccess(res.data?.message || "Access account deleted successfully");
-      await loadAccessMonitor();
+      const nextPage = admins.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await loadAccessMonitor(nextPage, pagination.limit, search);
+      }
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to delete access account");
     } finally {
@@ -175,6 +201,19 @@ export default function SuperAdminAccess() {
           <div className="p-6 border-b border-outline/10">
             <h2 className="text-xl font-headline font-bold text-primary">All Admin Access</h2>
             <p className="text-sm text-secondary mt-1">Owners and admin accounts across every cafe, excluding the superadmin login.</p>
+            <div className="relative mt-4 max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search by name, email, cafe..."
+                className="w-full rounded-2xl border-none bg-surface-container-low py-3 pl-10 pr-4 text-sm outline-none"
+              />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -243,6 +282,16 @@ export default function SuperAdminAccess() {
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            pagination={pagination}
+            itemLabel="admin accounts"
+            disabled={loading}
+            onPageChange={setPage}
+            onLimitChange={(limit) => {
+              setPagination((current) => ({ ...current, limit }));
+              setPage(1);
+            }}
+          />
         </section>
 
         <section className="bg-white rounded-3xl border border-outline/10 shadow-sm p-6">

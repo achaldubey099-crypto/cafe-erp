@@ -7,6 +7,7 @@ const { syncRestaurantAccessKey } = require("../utils/accessKeys");
 const { ensureRestaurantForUser } = require("../utils/restaurantScope");
 const { getTableSlug } = require("../utils/tableSlug");
 const { ensureRestaurantTables } = require("../utils/ensureRestaurantTables");
+const { getPaginationParams, buildPaginationMeta, escapeRegex } = require("../utils/pagination");
 
 const uploadImageToCloudinary = (fileBuffer) =>
   new Promise((resolve, reject) => {
@@ -31,7 +32,8 @@ const applyMenuFilters = (filter, { category, search }) => {
   const nextFilter = { ...filter };
 
   if (search) {
-    nextFilter.name = { $regex: search, $options: "i" };
+    const searchPattern = new RegExp(escapeRegex(search), "i");
+    nextFilter.$or = [{ name: searchPattern }, { category: searchPattern }];
   }
 
   if (category && category !== "All") {
@@ -137,22 +139,45 @@ exports.getMenu = async (req, res) => {
   try {
     const { category, search, sort } = req.query;
     const { restaurantId, cafeId } = await ensureRestaurantForUser(req);
+    const scopeFilter = restaurantId ? { restaurantId } : { cafeId };
+    const { page, limit, skip, shouldPaginate } = getPaginationParams(req.query);
 
     if (!restaurantId && !cafeId) {
       return res.status(400).json({ message: "Restaurant or cafe context is required for admin menu access" });
     }
 
     let filter = applyMenuFilters(
-      restaurantId ? { restaurantId } : { cafeId },
+      scopeFilter,
       { category, search }
     );
     let query = Menu.find(filter);
 
     if (sort === "price_asc") query = query.sort({ price: 1 });
     if (sort === "price_desc") query = query.sort({ price: -1 });
+    if (!sort) query = query.sort({ createdAt: -1, _id: -1 });
 
-    const menu = await query;
-    res.json(menu);
+    if (!shouldPaginate) {
+      const menu = await query;
+      return res.json(menu);
+    }
+
+    const [menu, totalItems, featuredItems, withImageItems] = await Promise.all([
+      query.skip(skip).limit(limit).lean(),
+      Menu.countDocuments(filter),
+      Menu.countDocuments({ ...scopeFilter, isFeatured: true }),
+      Menu.countDocuments({ ...scopeFilter, image: { $nin: ["", null] } }),
+    ]);
+
+    res.json({
+      items: menu,
+      menu,
+      pagination: buildPaginationMeta({ page, limit, totalItems }),
+      summary: {
+        totalItems,
+        featuredItems,
+        withImageItems,
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

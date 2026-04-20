@@ -1,11 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { Package, AlertTriangle, Ban, Plus, Download, Filter, Edit2, Trash2, X } from 'lucide-react';
+import { Package, AlertTriangle, Ban, Plus, Download, Search, Edit2, Trash2, X } from 'lucide-react';
+import PaginationControls from '../components/PaginationControls';
+import { createPaginationState } from '../lib/pagination';
 import { cn } from '../lib/utils';
 import API from '../lib/api';
-import { Product } from '../types';
+import { PaginationMeta, Product } from '../types';
 
 interface CreateMenuResponse {
   item: Product;
+}
+
+interface PaginatedMenuResponse {
+  items?: Product[];
+  menu?: Product[];
+  pagination: PaginationMeta;
+  summary?: {
+    totalItems: number;
+    featuredItems: number;
+    withImageItems: number;
+  };
 }
 
 export default function AdminInventory() {
@@ -17,6 +30,14 @@ export default function AdminInventory() {
   const [csvUploading, setCsvUploading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta>(createPaginationState(10));
+  const [summary, setSummary] = useState({
+    totalItems: 0,
+    featuredItems: 0,
+    withImageItems: 0,
+  });
   const [form, setForm] = useState({
     name: '',
     price: '',
@@ -27,16 +48,31 @@ export default function AdminInventory() {
   const [imagePreview, setImagePreview] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
 
-  const loadMenu = async () => {
+  const loadMenu = async (pageNumber = page, limitNumber = pagination.limit, searchValue = searchTerm) => {
     try {
       setLoading(true);
       setError('');
-      setMessage('');
-      const res = await API.get<Product[]>('/menu');
-      setProducts(res.data || []);
+      const res = await API.get<PaginatedMenuResponse>('/menu', {
+        params: {
+          paginate: true,
+          page: pageNumber,
+          limit: limitNumber,
+          search: searchValue || undefined,
+        },
+      });
+
+      const items = res.data.items || res.data.menu || [];
+      setProducts(items);
+      setPagination(res.data.pagination || createPaginationState(limitNumber));
+      setSummary({
+        totalItems: res.data.summary?.totalItems || 0,
+        featuredItems: res.data.summary?.featuredItems || 0,
+        withImageItems: res.data.summary?.withImageItems || 0,
+      });
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to load menu items');
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -44,7 +80,7 @@ export default function AdminInventory() {
 
   useEffect(() => {
     loadMenu();
-  }, []);
+  }, [page, pagination.limit, searchTerm]);
 
   const resetForm = () => {
     setForm({ name: '', price: '', category: 'Coffee', isFeatured: false });
@@ -100,17 +136,16 @@ export default function AdminInventory() {
         body.append('imageFile', imageFile);
       }
 
-      const res = editingId
-        ? await API.put<CreateMenuResponse>(`/menu/${editingId}`, body)
-        : await API.post<CreateMenuResponse>('/menu', body);
+      if (editingId) {
+        await API.put<CreateMenuResponse>(`/menu/${editingId}`, body);
+      } else {
+        await API.post<CreateMenuResponse>('/menu', body);
+      }
 
-      setProducts((prev) => (
-        editingId
-          ? prev.map((item) => (item._id === editingId ? res.data.item : item))
-          : [res.data.item, ...prev]
-      ));
       setMessage(editingId ? 'Menu item updated.' : 'Menu item created.');
       closeModal();
+      setPage(1);
+      await loadMenu(1, pagination.limit, searchTerm);
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to save menu item');
@@ -141,7 +176,8 @@ export default function AdminInventory() {
 
       setCsvFile(null);
       setMessage(res.data?.message ? `${res.data.message} (${res.data.count} items)` : 'CSV imported successfully.');
-      await loadMenu();
+      setPage(1);
+      await loadMenu(1, pagination.limit, searchTerm);
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to upload CSV');
@@ -162,8 +198,13 @@ export default function AdminInventory() {
       setMessage('');
 
       await API.delete(`/menu/${product._id}`);
-      setProducts((prev) => prev.filter((item) => item._id !== product._id));
       setMessage('Menu item deleted.');
+      const nextPage = products.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await loadMenu(nextPage, pagination.limit, searchTerm);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to delete menu item');
@@ -171,9 +212,9 @@ export default function AdminInventory() {
   };
   
   const stats = [
-    { label: "Menu Items", value: String(products.length), sub: loading ? "Loading..." : "Live menu", icon: Package, color: "primary" },
-    { label: "Favorites Ready", value: String(products.filter((item) => item.image).length), sub: "With images", icon: AlertTriangle, color: "secondary" },
-    { label: "Featured", value: String(products.filter((item) => item.isFeatured).length), sub: "Highlighted items", icon: Ban, color: "secondary" },
+    { label: "Menu Items", value: String(summary.totalItems), sub: loading ? "Loading..." : "Across all pages", icon: Package, color: "primary" },
+    { label: "Favorites Ready", value: String(summary.withImageItems), sub: "With images", icon: AlertTriangle, color: "secondary" },
+    { label: "Featured", value: String(summary.featuredItems), sub: "Highlighted items", icon: Ban, color: "secondary" },
   ];
 
   return (
@@ -236,25 +277,22 @@ export default function AdminInventory() {
       <div className="grid xl:grid-cols-[1.4fr_0.9fr] gap-6">
         <div className="bg-white rounded-3xl shadow-sm border border-outline/10 overflow-hidden">
         <div className="p-6 border-b border-outline/5 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <select className="bg-surface-container border-none rounded-xl py-2.5 px-4 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary/20 outline-none">
-              <option>All Categories</option>
-              <option>Coffee Beans</option>
-              <option>Dairy & Alt</option>
-              <option>Pastries</option>
-            </select>
-            <select className="bg-surface-container border-none rounded-xl py-2.5 px-4 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary/20 outline-none">
-              <option>All Status</option>
-              <option>In Stock</option>
-              <option>Low Stock</option>
-            </select>
+          <div className="relative w-full max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by item or category..."
+              className="w-full bg-surface-container border-none rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
+            />
           </div>
           <div className="flex items-center gap-2">
             <button className="p-2.5 rounded-xl border border-outline/20 text-secondary hover:bg-surface-container transition-all">
               <Download size={18} />
-            </button>
-            <button className="p-2.5 rounded-xl border border-outline/20 text-secondary hover:bg-surface-container transition-all">
-              <Filter size={18} />
             </button>
           </div>
         </div>
@@ -327,6 +365,16 @@ export default function AdminInventory() {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          pagination={pagination}
+          itemLabel="menu items"
+          disabled={loading}
+          onPageChange={setPage}
+          onLimitChange={(limit) => {
+            setPagination((current) => ({ ...current, limit }));
+            setPage(1);
+          }}
+        />
         </div>
 
         <div className="bg-white rounded-3xl shadow-sm border border-outline/10 p-6 space-y-4 h-fit">

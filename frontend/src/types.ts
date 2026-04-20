@@ -57,3 +57,12 @@ export interface Feedback {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
