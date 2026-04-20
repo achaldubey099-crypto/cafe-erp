@@ -251,12 +251,6 @@ export default function AdminPOS() {
           <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tight">POS Tables</h2>
           <p className="text-secondary font-medium mt-1">Only ongoing orders (pending, preparing, ready) are shown here.</p>
         </div>
-        <button
-          onClick={loadPosData}
-          className="px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
-        >
-          Refresh
-        </button>
       </div>
 
       {error && <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">{error}</div>}
