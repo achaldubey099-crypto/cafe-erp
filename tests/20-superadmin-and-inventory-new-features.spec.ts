@@ -148,6 +148,14 @@ async function mockSuperadminApis(page: Page) {
 }
 
 async function mockInventoryApis(page: Page) {
+  await page.route('**/api/admin/orders/active**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
   await page.route('**/api/menu/bulk-upload', async (route) => {
     await route.fulfill({
       status: 200,
@@ -475,6 +483,36 @@ test.describe('Superadmin And Inventory New Features', () => {
     await expect(page.getByRole('button', { name: 'Add New Item' })).toBeVisible();
   });
 
+  test('inventory page does not show the old shared header search', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockInventoryApis(page);
+    await page.goto('/admin/inventory');
+    await expect(page.getByPlaceholder('Search everything...')).toHaveCount(0);
+  });
+
+  test('inventory search filters items by name', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockInventoryApis(page);
+    await page.goto('/admin/inventory');
+    await page.getByPlaceholder('Search by item or category...').fill('Chocolate');
+    await expect(page.getByText('Chocolate Cake')).toBeVisible();
+    await expect(page.getByText('Red Velvet Latte')).toHaveCount(0);
+  });
+
+  test('inventory download button exports a csv', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockInventoryApis(page);
+    await page.goto('/admin/inventory');
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download inventory CSV' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toContain('inventory-');
+    expect(download.suggestedFilename()).toContain('.csv');
+  });
+
   test('inventory row shows one edit icon action', async ({ page }) => {
     await clearStorage(page);
     await seedAdmin(page);
@@ -520,6 +558,14 @@ test.describe('Superadmin And Inventory New Features', () => {
     await mockInventoryApis(page);
     await page.goto('/admin/inventory');
     await expect(page.getByText('`name`, `price`, `category`, `image`, `imageUrl`, or `image_url`, optional `isFeatured`')).toBeVisible();
+  });
+
+  test('inventory csv uploader uses a pill choose file control', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockInventoryApis(page);
+    await page.goto('/admin/inventory');
+    await expect(page.locator('label[for="inventory-csv-file-input"]')).toHaveText('Choose File');
   });
 
   test('inventory csv upload posts the bulk import request', async ({ page }) => {
@@ -601,5 +647,32 @@ test.describe('Superadmin And Inventory New Features', () => {
     await page.getByPlaceholder('e.g. Iced Latte').fill('Updated Latte');
     await page.getByRole('button', { name: 'Update Item' }).click();
     expect(updateCalls).toBe(1);
+  });
+
+  test('inventory edit modal keeps a custom category value', async ({ page }) => {
+    const customCategoryItem = {
+      ...MENU_PRODUCTS[0],
+      _id: 'custom-category-item',
+      name: 'House Special Cold Brew',
+      category: 'Signature Specials',
+    };
+
+    await clearStorage(page);
+    await seedAdmin(page);
+    await page.route('**/api/menu', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([customCategoryItem]) });
+    });
+    await page.goto('/admin/inventory');
+    await page.getByLabel(`Edit ${customCategoryItem.name}`).click();
+    await expect(page.locator('input[list="inventory-category-options"]')).toHaveValue('Signature Specials');
+  });
+
+  test('inventory edit modal uses a pill choose file control', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockInventoryApis(page);
+    await page.goto('/admin/inventory');
+    await page.getByLabel(`Edit ${MENU_PRODUCTS[0].name}`).click();
+    await expect(page.locator('label[for="inventory-image-file-input"]')).toHaveText('Choose File');
   });
 });

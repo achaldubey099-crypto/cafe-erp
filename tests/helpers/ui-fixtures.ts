@@ -872,6 +872,12 @@ export async function mockAdminPageApis(page: Page) {
   await mockAdminOrders(page);
   await mockOrders(page, ADMIN_ORDERS);
   await mockMenu(page);
+  await page.route('**/api/admin/orders/active**', async (route) => {
+    await json(
+      route,
+      ADMIN_ORDERS.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status))
+    );
+  });
   await page.route('**/api/admin/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/admin/restaurant/me')) {

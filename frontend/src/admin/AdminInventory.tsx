@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Package, AlertTriangle, Ban, Plus, Download, Search, Edit2, Trash2, X } from 'lucide-react';
 import PaginationControls from '../components/PaginationControls';
 import { createPaginationState } from '../lib/pagination';
@@ -10,16 +10,19 @@ interface CreateMenuResponse {
   item: Product;
 }
 
-interface PaginatedMenuResponse {
-  items?: Product[];
-  menu?: Product[];
-  pagination: PaginationMeta;
-  summary?: {
-    totalItems: number;
-    featuredItems: number;
-    withImageItems: number;
-  };
-}
+const DEFAULT_CATEGORY_OPTIONS = ['Coffee', 'Snacks', 'Desserts', 'Teas', 'Seasonal'];
+
+const matchesInventorySearch = (product: Product, searchValue: string) => {
+  const normalizedSearch = searchValue.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [product.name, product.category].some((value) =>
+    String(value || '').toLowerCase().includes(normalizedSearch)
+  );
+};
 
 export default function AdminInventory() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,30 +47,47 @@ export default function AdminInventory() {
     category: 'Coffee',
     isFeatured: false,
   });
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const filteredProducts = products.filter((product) => matchesInventorySearch(product, normalizedSearchTerm));
+  const totalFilteredItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalFilteredItems / pagination.limit));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * pagination.limit,
+    currentPage * pagination.limit
+  );
+  const currentPagination: PaginationMeta = {
+    page: currentPage,
+    limit: pagination.limit,
+    totalItems: totalFilteredItems,
+    totalPages,
+    hasNextPage: currentPage < totalPages,
+    hasPrevPage: currentPage > 1,
+  };
+  const categoryOptions = Array.from(
+    new Set(
+      [...DEFAULT_CATEGORY_OPTIONS, ...products.map((product) => product.category), form.category]
+        .map((category) => category.trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right));
 
-  const loadMenu = async (pageNumber = page, limitNumber = pagination.limit, searchValue = searchTerm) => {
+  const loadMenu = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await API.get<PaginatedMenuResponse>('/menu', {
-        params: {
-          paginate: true,
-          page: pageNumber,
-          limit: limitNumber,
-          search: searchValue || undefined,
-        },
-      });
-
-      const items = res.data.items || res.data.menu || [];
+      const res = await API.get<Product[]>('/menu');
+      const items = Array.isArray(res.data) ? res.data : [];
       setProducts(items);
-      setPagination(res.data.pagination || createPaginationState(limitNumber));
       setSummary({
-        totalItems: res.data.summary?.totalItems || 0,
-        featuredItems: res.data.summary?.featuredItems || 0,
-        withImageItems: res.data.summary?.withImageItems || 0,
+        totalItems: items.length,
+        featuredItems: items.filter((item) => item.isFeatured).length,
+        withImageItems: items.filter((item) => item.image).length,
       });
     } catch (err: any) {
       console.error(err);
@@ -80,13 +100,22 @@ export default function AdminInventory() {
 
   useEffect(() => {
     loadMenu();
-  }, [page, pagination.limit, searchTerm]);
+  }, []);
+
+  useEffect(() => {
+    if (page !== currentPage) {
+      setPage(currentPage);
+    }
+  }, [currentPage, page]);
 
   const resetForm = () => {
     setForm({ name: '', price: '', category: 'Coffee', isFeatured: false });
     setImageFile(null);
     setImagePreview('');
     setEditingId(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
   };
 
   const closeModal = () => {
@@ -118,6 +147,47 @@ export default function AdminInventory() {
     setImagePreview(file ? URL.createObjectURL(file) : '');
   };
 
+  const exportInventoryToCsv = () => {
+    const itemsToExport = filteredProducts;
+
+    if (itemsToExport.length === 0) {
+      setError('No inventory items are available to export');
+      return;
+    }
+
+    const headers = ['name', 'category', 'price', 'isFeatured', 'image'];
+    const escapeCsv = (value: string | number | boolean | undefined) => {
+      const text = String(value ?? '');
+      if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const rows = itemsToExport.map((product) =>
+      [
+        product.name,
+        product.category,
+        product.price,
+        Boolean(product.isFeatured),
+        product.image || '',
+      ]
+        .map(escapeCsv)
+        .join(',')
+    );
+
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `inventory-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleSaveMenuItem = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -145,7 +215,7 @@ export default function AdminInventory() {
       setMessage(editingId ? 'Menu item updated.' : 'Menu item created.');
       closeModal();
       setPage(1);
-      await loadMenu(1, pagination.limit, searchTerm);
+      await loadMenu();
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to save menu item');
@@ -175,9 +245,12 @@ export default function AdminInventory() {
       });
 
       setCsvFile(null);
+      if (csvInputRef.current) {
+        csvInputRef.current.value = '';
+      }
       setMessage(res.data?.message ? `${res.data.message} (${res.data.count} items)` : 'CSV imported successfully.');
       setPage(1);
-      await loadMenu(1, pagination.limit, searchTerm);
+      await loadMenu();
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to upload CSV');
@@ -199,12 +272,11 @@ export default function AdminInventory() {
 
       await API.delete(`/menu/${product._id}`);
       setMessage('Menu item deleted.');
-      const nextPage = products.length === 1 && page > 1 ? page - 1 : page;
+      const nextPage = paginatedProducts.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
       if (nextPage !== page) {
         setPage(nextPage);
-      } else {
-        await loadMenu(nextPage, pagination.limit, searchTerm);
       }
+      await loadMenu();
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.message || 'Failed to delete menu item');
@@ -291,7 +363,12 @@ export default function AdminInventory() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2.5 rounded-xl border border-outline/20 text-secondary hover:bg-surface-container transition-all">
+            <button
+              type="button"
+              onClick={exportInventoryToCsv}
+              className="p-2.5 rounded-xl border border-outline/20 text-secondary hover:bg-surface-container transition-all"
+              aria-label="Download inventory CSV"
+            >
               <Download size={18} />
             </button>
           </div>
@@ -313,7 +390,7 @@ export default function AdminInventory() {
                 <tr>
                   <td colSpan={5} className="py-8 px-8 text-center text-secondary">Loading menu items...</td>
                 </tr>
-              ) : products.length > 0 ? products.map((product) => (
+              ) : paginatedProducts.length > 0 ? paginatedProducts.map((product) => (
                 <tr key={product.id ?? product._id} className="group hover:bg-surface-container-low/30 transition-all">
                   <td className="py-4 px-8">
                     <div className="flex items-center gap-4">
@@ -327,7 +404,12 @@ export default function AdminInventory() {
                     </div>
                   </td>
                   <td className="py-4 px-6">
-                    <span className="text-xs font-bold text-secondary px-3 py-1 bg-surface-container rounded-full">{product.category}</span>
+                    <span
+                      title={product.category}
+                      className="inline-flex max-w-[14rem] whitespace-normal break-words rounded-full bg-surface-container px-3 py-1 text-center text-xs font-bold leading-tight text-secondary"
+                    >
+                      {product.category}
+                    </span>
                   </td>
                   <td className="py-4 px-6 font-headline font-bold text-on-surface">₹{product.price}</td>
                   <td className="py-4 px-6">
@@ -366,7 +448,7 @@ export default function AdminInventory() {
           </table>
         </div>
         <PaginationControls
-          pagination={pagination}
+          pagination={currentPagination}
           itemLabel="menu items"
           disabled={loading}
           onPageChange={setPage}
@@ -385,12 +467,27 @@ export default function AdminInventory() {
             </p>
           </div>
 
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(event) => setCsvFile(event.target.files?.[0] || null)}
-            className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-5 text-sm outline-none"
-          />
+          <div className="rounded-2xl bg-surface-container-low px-4 py-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                htmlFor="inventory-csv-file-input"
+                className="inline-flex cursor-pointer items-center rounded-full border border-outline/15 bg-white px-4 py-2 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-surface-container"
+              >
+                Choose File
+              </label>
+              <span className="text-sm text-secondary">
+                {csvFile?.name || 'No file selected'}
+              </span>
+            </div>
+            <input
+              ref={csvInputRef}
+              id="inventory-csv-file-input"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => setCsvFile(event.target.files?.[0] || null)}
+              className="sr-only"
+            />
+          </div>
 
           <div className="rounded-2xl bg-surface-container-low p-4 text-xs text-secondary space-y-2">
             <p className="font-bold uppercase tracking-widest text-[10px] text-secondary">CSV Columns</p>
@@ -448,17 +545,20 @@ export default function AdminInventory() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Category</label>
-                    <select
+                    <input
+                      list="inventory-category-options"
+                      type="text"
                       value={form.category}
                       onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
-                      className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
-                    >
-                      <option>Coffee</option>
-                      <option>Snacks</option>
-                      <option>Desserts</option>
-                      <option>Teas</option>
-                      <option>Seasonal</option>
-                    </select>
+                      placeholder="e.g. Signature Specials"
+                      required
+                      className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    />
+                    <datalist id="inventory-category-options">
+                      {categoryOptions.map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Price</label>
@@ -477,12 +577,27 @@ export default function AdminInventory() {
 
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-secondary ml-1">Menu Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="w-full bg-surface-container-low border-none rounded-2xl py-4 px-6 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  />
+                  <div className="rounded-2xl bg-surface-container-low px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        htmlFor="inventory-image-file-input"
+                        className="inline-flex cursor-pointer items-center rounded-full border border-outline/15 bg-white px-4 py-2 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-surface-container"
+                      >
+                        Choose File
+                      </label>
+                      <span className="text-sm text-secondary">
+                        {imageFile?.name || 'No file selected'}
+                      </span>
+                    </div>
+                    <input
+                      ref={imageInputRef}
+                      id="inventory-image-file-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="sr-only"
+                    />
+                  </div>
                   {imagePreview && (
                     <img src={imagePreview} alt="Selected menu item" className="h-28 w-full object-cover rounded-2xl" />
                   )}

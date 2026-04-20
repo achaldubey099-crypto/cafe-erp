@@ -1,5 +1,7 @@
 import Inventory from "../models/Inventory.js";
 
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
  * Helper: Get status dynamically
  */
@@ -30,13 +32,23 @@ export const addItem = async (req, res) => {
  */
 export const getItems = async (req, res) => {
   try {
-    const { category, status, page = 1, limit = 10 } = req.query;
+    const { category, status, search, page = 1, limit = 10 } = req.query;
 
     let query = {};
 
     // Filter by category
     if (category && category !== "All") {
       query.category = category;
+    }
+
+    if (search && String(search).trim()) {
+      const searchPattern = new RegExp(escapeRegex(String(search).trim()), "i");
+      query.$or = [
+        { name: searchPattern },
+        { sku: searchPattern },
+        { category: searchPattern },
+        { vendor: searchPattern },
+      ];
     }
 
     let items = await Inventory.find(query);
@@ -54,12 +66,14 @@ export const getItems = async (req, res) => {
     }
 
     // Pagination
-    const start = (page - 1) * limit;
-    const paginatedItems = items.slice(start, start + Number(limit));
+    const safePage = Number(page) || 1;
+    const safeLimit = Number(limit) || 10;
+    const start = (safePage - 1) * safeLimit;
+    const paginatedItems = items.slice(start, start + safeLimit);
 
     res.json({
       total: items.length,
-      page: Number(page),
+      page: safePage,
       items: paginatedItems,
     });
   } catch (error) {

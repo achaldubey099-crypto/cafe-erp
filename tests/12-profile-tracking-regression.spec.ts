@@ -120,6 +120,12 @@ test.describe('Profile And Tracking Regression Suite', () => {
     await expect(page).toHaveURL(/\/login\?returnTo=\/profile/);
   });
 
+  test('login page shows rewards-focused sign-in heading', async ({ page }) => {
+    await openProfile(page);
+    await page.getByRole('button', { name: 'Login with Google' }).click();
+    await expect(page.getByRole('heading', { name: 'Sign in to unlock exciting rewards' })).toBeVisible();
+  });
+
   test('guest back button returns to menu', async ({ page }) => {
     await openProfile(page);
     await page.locator('button').first().click();
@@ -171,6 +177,13 @@ test.describe('Profile And Tracking Regression Suite', () => {
   test('favorite price for red velvet latte is visible', async ({ page }) => {
     await openProfile(page, { customer: true });
     await expect(page.getByText('₹325')).toBeVisible();
+  });
+
+  test('logged-in profile lets customers order a favorite directly', async ({ page }) => {
+    await openProfile(page, { customer: true });
+    await page.getByRole('button', { name: 'Order now' }).first().click();
+    await expect(page).toHaveURL(/\/cart$/);
+    await expect(page.getByText('Chocolate Cake')).toBeVisible();
   });
 
   test('past order row for first order is visible', async ({ page }) => {

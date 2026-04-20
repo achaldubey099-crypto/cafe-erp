@@ -141,10 +141,10 @@ export default function Login() {
           Artisan Café
         </p>
         <h1 className="mt-3 text-3xl font-headline font-extrabold text-primary">
-          Sign in to order
+          Sign in to unlock exciting rewards
         </h1>
         <p className="mt-3 text-sm text-on-surface-variant">
-          Continue with Google to save favorites, place orders and track your café visits.
+          Continue with Google to save favorites, collect points, and order faster on every visit.
         </p>
 
         <div className="mt-10 flex justify-center">

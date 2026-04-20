@@ -330,9 +330,6 @@ const filteredProducts = products.filter((p) => {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-95">
-              <Bell size={20} className="text-primary" />
-            </button>
             {isLoggedIn ? (
               <button
                 onClick={handleLogout}

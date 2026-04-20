@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Edit2, Stars, ChevronRight, LogIn, LogOut } from 'lucide-react';
+import { ArrowLeft, Edit2, Stars, ChevronRight, LogIn, LogOut, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import API from '../lib/api';
 import PaginationControls from '../components/PaginationControls';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { createPaginationState } from '../lib/pagination';
 import { getTableId } from '../lib/table';
 import { getCustomerMenuPath, getTenantContext } from '../lib/tenant';
@@ -50,6 +51,7 @@ export default function Profile() {
   const [ordersPagination, setOrdersPagination] = useState<PaginationMeta>(createPaginationState(5));
 
   const { customer, logoutCustomer } = useAuth();
+  const { addToCart, removeFromCart, cart } = useCart();
   const isLoggedIn = !!customer;
 
   useEffect(() => {
@@ -118,6 +120,20 @@ export default function Profile() {
   const totalSpent = profile?.totalSpent ?? 0;
   const pastOrders = profile?.pastOrders || [];
   const progressWidth = `${Math.min(100, (points % 100) || 20)}%`;
+  const getCartQuantity = (itemId: string) => cart.find((item) => item._id === itemId)?.quantity || 0;
+  const addFavoriteToCart = (item: NonNullable<FavoriteResponse['itemId']>) => {
+    addToCart({
+      _id: item._id,
+      name: item.name,
+      price: typeof item.price === 'number' ? item.price : 0,
+      image: item.image || '',
+      category: item.category || 'Favorites',
+    });
+  };
+  const handleOrderFavorite = (item: NonNullable<FavoriteResponse['itemId']>) => {
+    addFavoriteToCart(item);
+    navigate('/cart');
+  };
 
   return (
     <div className="bg-background min-h-screen pb-32">
@@ -212,7 +228,7 @@ export default function Profile() {
             <div className="mt-6 space-y-2">
               <div className="flex justify-between text-xs text-on-primary/90 font-medium">
                 <span>Progress</span>
-                <span>{totalSpent > 0 ? `â‚¹${totalSpent.toFixed(2)} spent` : 'Place your first order to earn points'}</span>
+                <span>{totalSpent > 0 ? `\u20B9${totalSpent.toFixed(2)} spent` : 'Place your first order to earn points'}</span>
               </div>
               <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
                 <div className="h-full bg-on-primary-container rounded-full" style={{ width: progressWidth }} />
@@ -241,18 +257,59 @@ export default function Profile() {
                 favorites.map((favorite) => {
                   const item = favorite.itemId;
                   if (!item) return null;
+                  const quantityInCart = getCartQuantity(item._id);
 
                   return (
-                    <div key={favorite._id} className="bg-white p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
+                    <div key={favorite._id} className="bg-white p-3 rounded-2xl flex flex-col gap-3 shadow-sm">
                       <div className="w-full aspect-square rounded-xl overflow-hidden bg-surface-container p-3">
                         <img src={item.image || ''} alt={item.name} className="w-full h-full object-cover rounded-md shadow-sm" referrerPolicy="no-referrer" />
                       </div>
-                      <div>
+                      <div className="space-y-1">
                         <p className="font-headline font-bold text-sm text-on-surface leading-tight">{item.name}</p>
                         {typeof item.price === 'number' && (
-                          <p className="text-xs font-bold text-primary mt-1">â‚¹{item.price}</p>
+                          <p className="text-xs font-bold text-primary">{`\u20B9${item.price}`}</p>
                         )}
                       </div>
+                      {quantityInCart > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between rounded-2xl bg-surface-container-low px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(item._id)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-secondary shadow-sm transition-colors hover:text-primary"
+                              aria-label={`Remove ${item.name} from cart`}
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="text-xs font-bold text-on-surface">{quantityInCart} in cart</span>
+                            <button
+                              type="button"
+                              onClick={() => addFavoriteToCart(item)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary shadow-sm transition-colors hover:opacity-90"
+                              aria-label={`Add ${item.name} to cart`}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/cart')}
+                            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-surface-container-low"
+                          >
+                            <ShoppingCart size={14} />
+                            Go to cart
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOrderFavorite(item)}
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-3 py-2 text-xs font-bold text-on-primary transition-opacity hover:opacity-90"
+                        >
+                          <ShoppingCart size={14} />
+                          Order now
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -285,7 +342,7 @@ export default function Profile() {
                           <p className="font-body text-sm text-on-surface">
                             {order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}
                           </p>
-                          <p className="font-headline font-bold text-primary">â‚¹{order.grandTotal.toFixed(2)}</p>
+                          <p className="font-headline font-bold text-primary">{`\u20B9${order.grandTotal.toFixed(2)}`}</p>
                         </div>
                       </div>
                     </div>

@@ -103,9 +103,75 @@ test.describe('Admin Regression Suite', () => {
     });
   }
 
-  test('admin top search is visible', async ({ page }) => {
+  test('admin top search is removed from shared header', async ({ page }) => {
     await openAdmin(page, '/admin');
-    await expect(page.getByPlaceholder('Search everything...')).toBeVisible();
+    await expect(page.getByPlaceholder('Search everything...')).toHaveCount(0);
+  });
+
+  test('admin header shows notifications and refresh controls', async ({ page }) => {
+    await openAdmin(page, '/admin');
+    await expect(page.getByRole('button', { name: 'Open notifications' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Refresh page' })).toBeVisible();
+  });
+
+  test('admin header surfaces new order notifications in the bell tray', async ({ page }) => {
+    let activeOrderCalls = 0;
+    await clearStorage(page);
+    await seedAdmin(page);
+    await mockAdminPageApis(page);
+    await page.route('**/api/admin/orders/active**', async (route) => {
+      activeOrderCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          activeOrderCalls <= 2
+            ? []
+            : [
+                {
+                  _id: 'fresh-order-1',
+                  createdAt: '2026-04-20T12:00:00.000Z',
+                  items: [{ itemId: 1, name: 'Red Velvet Latte', price: 325, quantity: 1 }],
+                  grandTotal: 325,
+                  status: 'pending',
+                  tableId: 12,
+                },
+              ]
+        ),
+      });
+    });
+
+    await page.goto('/admin');
+    await expect(page.getByText('New Order Received')).toBeVisible({ timeout: 8000 });
+    await page.getByRole('button', { name: 'Open notifications' }).click();
+    await expect(page.getByText('New order from Table 12')).toBeVisible();
+  });
+
+  test('pos page auto dismisses stored notifications', async ({ page }) => {
+    await clearStorage(page);
+    await seedAdmin(page);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'admin-order-notifications:admin-user-1',
+        JSON.stringify({
+          hasInitialized: true,
+          seenOrderIds: ['stored-order-1'],
+          notifications: [
+            {
+              id: 'stored-order-1',
+              orderId: 'stored-order-1',
+              tableId: 4,
+              createdAt: '2026-04-20T12:00:00.000Z',
+              receivedAt: '2026-04-20T12:01:00.000Z',
+            },
+          ],
+        })
+      );
+    });
+    await mockAdminPageApis(page);
+    await page.goto('/admin/pos');
+    await page.getByRole('button', { name: 'Open notifications' }).click();
+    await expect(page.getByText('No pending notifications right now.')).toBeVisible();
   });
 
   test('dashboard shows todays sales card', async ({ page }) => {
